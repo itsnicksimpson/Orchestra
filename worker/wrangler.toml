@@ -1,0 +1,23 @@
+name = "orchestra-api"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "cc2b89d677bba48b9e193fc025ccefa5"
+
+[[kv_namespaces]]
+binding = "ORCHESTRA_KV"
+id = "1857db667a984e10b72fd1059ac15ad3"
+preview_id = "1857db667a984e10b72fd1059ac15ad3"
+
+[vars]
+FRONTEND_URL = "https://orchestra-app-bci.pages.dev"
+
+# Secrets (set via: wrangler secret put SECRET_NAME):
+# ANTHROPIC_API_KEY
+# INTERCOM_CLIENT_ID
+# INTERCOM_CLIENT_SECRET
+# MAILCHIMP_CLIENT_ID
+# MAILCHIMP_CLIENT_SECRET
+# DATABASE_HOST          (PlanetScale host, e.g. "aws.connect.psdb.cloud")
+# DATABASE_USERNAME      (PlanetScale username)
+# DATABASE_PASSWORD      (PlanetScale password)
