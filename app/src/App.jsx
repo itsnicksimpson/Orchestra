@@ -438,11 +438,50 @@ function Sidebar({ tab, setTab, connected, companyName, collapsed, setCollapsed 
   );
 }
 
-/* ═══════════ ONBOARDING ═══════════ */
+/* ═══════════ ONBOARDING (Profound-style split screen) ═══════════ */
+const ONBOARD_TESTIMONIALS = [
+  { quote: "Orchestra replaced our morning standup with an AI digest. We save 30 minutes a day across the team.", name: "Sarah Chen", title: "Head of CX, ScaleUp", company: "scaleup" },
+  { quote: "I just ask 'how are we doing?' and get a full business report pulling from Stripe, Intercom, and our database. Magical.", name: "James Rodriguez", title: "CEO, LaunchPad", company: "launchpad" },
+  { quote: "Connecting our tools took 5 minutes. The first conversation saved us 3 hours of manual reporting.", name: "Priya Patel", title: "Operations Lead, GrowthCo", company: "growthco" },
+];
+
+const COMPANY_SIZES = ["1-10 employees", "11-50 employees", "51-200 employees", "201-1000 employees", "1001+ employees"];
+const INDUSTRIES = ["SaaS / Software", "E-commerce", "Fintech", "Healthcare", "Agency", "Education", "Other"];
+
+function OnboardRightPanel({ testimonialIdx = 0 }) {
+  const t = ONBOARD_TESTIMONIALS[testimonialIdx % ONBOARD_TESTIMONIALS.length];
+  return (
+    <div className="ob-right">
+      <div className="ob-right-bg" />
+      <div className="ob-testimonial-card fade-in" key={testimonialIdx}>
+        <div className="ob-testimonial-quote">"{t.quote}"</div>
+        <div className="ob-testimonial-author">
+          <div className="ob-testimonial-avatar">{t.name[0]}</div>
+          <div>
+            <div className="ob-testimonial-name">{t.name}</div>
+            <div className="ob-testimonial-title">{t.title}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OnboardProgress({ current, total }) {
+  return (
+    <div className="ob-progress">
+      {Array.from({ length: total }, (_, i) => (
+        <div key={i} className={`ob-dot ${i < current ? "ob-dot-done" : ""} ${i === current ? "ob-dot-active" : ""}`} />
+      ))}
+    </div>
+  );
+}
+
 function Onboarding({ onComplete }) {
   const [step, setStep] = useState(0);
-  const [expanded, setExpanded] = useState(null);
   const [org, setOrg] = useState("");
+  const [companySize, setCompanySize] = useState("");
+  const [industry, setIndustry] = useState("");
   const { status, refresh } = useIntegrationStatus();
   const [configuring, setConfiguring] = useState(null);
   const [fieldValues, setFieldValues] = useState({});
@@ -451,6 +490,7 @@ function Onboarding({ onComplete }) {
 
   const connectedIds = Object.entries(status).filter(([, v]) => v).map(([k]) => k);
   const count = connectedIds.length;
+  const TOTAL_STEPS = 5;
 
   const doSave = async (tool) => {
     setSaving(true);
@@ -474,23 +514,26 @@ function Onboarding({ onComplete }) {
     setSaving(false);
   };
 
-  // Configure view for a specific tool during onboarding
-  if (configuring && step === 1) {
+  // Credential entry sub-screen (within step 3)
+  if (configuring) {
     const tool = INTEGRATIONS_DATA.find(t => t.id === configuring);
     return (
-      <div className="onboard-page">
-        <div className="onboard-container">
-          <div className="fade-in" style={{ maxWidth: 480, width: "100%" }}>
-            <button onClick={() => { setConfiguring(null); setError(null); setFieldValues({}); }} className="back-btn">← Back to integrations</button>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
+      <div className="ob-shell">
+        <div className="ob-left">
+          <div className="ob-left-header">
+            <div className="ob-brand"><span className="ob-brand-icon">🎵</span> <span className="ob-brand-name">Orchestra</span></div>
+          </div>
+          <div className="ob-left-body fade-in">
+            <button onClick={() => { setConfiguring(null); setError(null); setFieldValues({}); }} className="ob-back-btn">‹ Back</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 8 }}>
               <div className="logo-box"><tool.Logo size={24} /></div>
               <div>
-                <h1 className="page-title" style={{ marginBottom: 2 }}>Connect {tool.name}</h1>
-                <p className="page-subtitle">{tool.tagline}</p>
+                <h1 className="ob-title" style={{ marginBottom: 2 }}>Connect {tool.name}</h1>
               </div>
             </div>
+            <p className="ob-subtitle">{tool.tagline}</p>
 
-            <div className="setup-card">
+            <div className="setup-card" style={{ marginTop: 24 }}>
               <div className="setup-card-header">How to get your credentials</div>
               <ol className="setup-steps">
                 {tool.setupSteps.map((s, i) => <li key={i}>{s}</li>)}
@@ -521,66 +564,169 @@ function Onboarding({ onComplete }) {
             <button
               onClick={() => doSave(tool)}
               disabled={saving || tool.fields.some(f => !fieldValues[f.key]?.trim())}
-              className="btn-primary btn-full"
-              style={{ marginTop: 8, opacity: saving || tool.fields.some(f => !fieldValues[f.key]?.trim()) ? 0.4 : 1 }}
+              className="ob-continue-btn"
+              style={{ opacity: saving || tool.fields.some(f => !fieldValues[f.key]?.trim()) ? 0.4 : 1 }}
             >
               {saving ? "Validating & connecting..." : `Connect ${tool.name}`}
             </button>
-            <p className="footnote" style={{ marginTop: 12 }}>Your credentials are validated before saving and stored securely.</p>
+            <p className="footnote" style={{ marginTop: 12 }}>Credentials are validated against the live API before saving.</p>
+          </div>
+          <div className="ob-left-footer">
+            <OnboardProgress current={3} total={TOTAL_STEPS} />
           </div>
         </div>
+        <OnboardRightPanel testimonialIdx={2} />
       </div>
     );
   }
 
   return (
-    <div className="onboard-page">
-      <div className="onboard-container">
-        {step === 0 && (
-          <div className="fade-in onboard-step">
-            <div className="onboard-logo">🎵</div>
-            <h1 className="onboard-title">Your business,<br />one conversation away.</h1>
-            <p className="onboard-sub">Connect your tools. Delegate work. Get answers.</p>
-            <input value={org} onChange={e => setOrg(e.target.value)} onKeyDown={e => e.key === "Enter" && org.trim() && setStep(1)} placeholder="Your company name" className="onboard-input" />
-            <button disabled={!org.trim()} onClick={() => setStep(1)} className="btn-primary btn-full" style={{ opacity: org.trim() ? 1 : 0.12 }}>Continue</button>
-          </div>
-        )}
-        {step === 1 && (
-          <div className="fade-in" style={{ maxWidth: 480, width: "100%" }}>
-            <div style={{ textAlign: "center", marginBottom: 40 }}>
-              <p className="step-tag">Step 1 of 2</p>
-              <h1 className="onboard-title" style={{ fontSize: 22 }}>Connect your tools</h1>
-              <p className="onboard-sub" style={{ fontSize: 14 }}>Paste your API keys — Orchestra validates and stores them securely.</p>
+    <div className="ob-shell">
+      <div className="ob-left">
+        <div className="ob-left-header">
+          <div className="ob-brand"><span className="ob-brand-icon">🎵</span> <span className="ob-brand-name">Orchestra</span></div>
+        </div>
+
+        <div className="ob-left-body">
+          {/* Step 0: Welcome + Company Name */}
+          {step === 0 && (
+            <div className="fade-in">
+              <h1 className="ob-title">Welcome to Orchestra</h1>
+              <p className="ob-subtitle">Your AI-powered business command center. Let's get you set up in under 5 minutes.</p>
+              <div className="form-group" style={{ marginTop: 32 }}>
+                <label className="field-label">Company name</label>
+                <input
+                  value={org}
+                  onChange={e => setOrg(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && org.trim() && setStep(1)}
+                  placeholder="e.g. Acme Inc."
+                  className="field-input"
+                  autoFocus
+                />
+              </div>
+              <button
+                disabled={!org.trim()}
+                onClick={() => setStep(1)}
+                className="ob-continue-btn"
+                style={{ opacity: org.trim() ? 1 : 0.15 }}
+              >Continue</button>
             </div>
-            <div className="card-list">
-              {INTEGRATIONS_DATA.map((tool, i) => {
-                const done = status[tool.id]; const open = expanded === tool.id;
-                return (
-                  <div key={tool.id} className="card-list-item" style={{ borderTop: i ? "1px solid var(--border)" : "none" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 4 }}>
-                      <div className="logo-box"><tool.Logo size={20} /></div>
-                      <div style={{ flex: 1 }}><div className="tool-name">{tool.name}</div><div className="tool-desc">{tool.tagline}</div></div>
-                      {done ? <span className="connected-badge">✓ Connected</span> : <button onClick={() => setConfiguring(tool.id)} className="btn-outline-sm">Connect</button>}
+          )}
+
+          {/* Step 1: Company Size */}
+          {step === 1 && (
+            <div className="fade-in">
+              <button onClick={() => setStep(0)} className="ob-back-btn">‹ Back</button>
+              <h1 className="ob-title">Tell us about {org}</h1>
+              <p className="ob-subtitle">This helps us personalize your experience.</p>
+
+              <div className="form-group" style={{ marginTop: 28 }}>
+                <label className="field-label">What's your company size?</label>
+                <div className="ob-choice-grid">
+                  {COMPANY_SIZES.map(s => (
+                    <button key={s} onClick={() => setCompanySize(s)} className={`ob-choice-btn ${companySize === s ? "ob-choice-active" : ""}`}>{s}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: 24 }}>
+                <label className="field-label">Industry</label>
+                <div className="ob-choice-grid">
+                  {INDUSTRIES.map(s => (
+                    <button key={s} onClick={() => setIndustry(s)} className={`ob-choice-btn ${industry === s ? "ob-choice-active" : ""}`}>{s}</button>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                disabled={!companySize}
+                onClick={() => setStep(2)}
+                className="ob-continue-btn"
+                style={{ opacity: companySize ? 1 : 0.15 }}
+              >Continue</button>
+            </div>
+          )}
+
+          {/* Step 2: Product Preview / Value Prop */}
+          {step === 2 && (
+            <div className="fade-in">
+              <button onClick={() => setStep(1)} className="ob-back-btn">‹ Back</button>
+              <div className="ob-integrations-preview">
+                {INTEGRATIONS_DATA.slice(0, 5).map(t => <t.Logo key={t.id} size={24} />)}
+              </div>
+              <h1 className="ob-title">One AI agent for all your tools</h1>
+              <p className="ob-subtitle">
+                Orchestra connects to your Intercom, Stripe, Mailchimp, Slack, and database.
+                Ask anything in plain English — pull reports, reply to conversations, check revenue, and more.
+              </p>
+              <div className="ob-value-list">
+                <div className="ob-value-item"><span className="ob-value-icon">⚡</span><div><strong>Instant answers</strong><br /><span className="ob-value-desc">Ask "how are we doing?" and get a full business report in seconds</span></div></div>
+                <div className="ob-value-item"><span className="ob-value-icon">🤖</span><div><strong>Scheduled agents</strong><br /><span className="ob-value-desc">Morning CX digests, weekly reports, and fire drills on autopilot</span></div></div>
+                <div className="ob-value-item"><span className="ob-value-icon">🛡️</span><div><strong>Safety guardrails</strong><br /><span className="ob-value-desc">Destructive actions always require your explicit approval</span></div></div>
+              </div>
+              <button onClick={() => setStep(3)} className="ob-continue-btn">Continue</button>
+            </div>
+          )}
+
+          {/* Step 3: Connect Tools */}
+          {step === 3 && (
+            <div className="fade-in">
+              <button onClick={() => setStep(2)} className="ob-back-btn">‹ Back</button>
+              <h1 className="ob-title">Connect your tools</h1>
+              <p className="ob-subtitle">Paste API keys to give Orchestra access. You can always add or remove tools later.</p>
+
+              <div className="ob-tool-list">
+                {INTEGRATIONS_DATA.map(tool => {
+                  const done = status[tool.id];
+                  return (
+                    <div key={tool.id} className="ob-tool-row">
+                      <div className="logo-box" style={{ width: 36, height: 36 }}><tool.Logo size={18} /></div>
+                      <div style={{ flex: 1 }}>
+                        <div className="ob-tool-name">{tool.name}</div>
+                        <div className="ob-tool-tagline">{tool.tagline}</div>
+                      </div>
+                      {done ? (
+                        <span className="ob-tool-connected">✓ Connected</span>
+                      ) : (
+                        <button onClick={() => setConfiguring(tool.id)} className="ob-tool-connect-btn">Connect</button>
+                      )}
                     </div>
-                    <button onClick={() => setExpanded(open ? null : tool.id)} className="cap-toggle">{open ? "Hide capabilities ↑" : "What can your agent do? →"}</button>
-                    {open && (<div className="fade-in" style={{ paddingBottom: 10 }}>{tool.capabilities.map((c, j) => <div key={j} className="cap-line">{c}</div>)}<div className="cap-note">Anything that modifies data requires your confirmation.</div></div>)}
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => setStep(4)}
+                className="ob-continue-btn"
+              >
+                {count > 0 ? `Continue with ${count} tool${count !== 1 ? "s" : ""}` : "Skip for now"}
+              </button>
+              <p className="footnote" style={{ marginTop: 12 }}>You can always add more later in Settings → Integrations</p>
             </div>
-            <button onClick={() => setStep(2)} className="btn-primary btn-full" style={{ marginTop: 24 }}>Continue{count > 0 ? ` with ${count} tool${count !== 1 ? "s" : ""}` : ""}</button>
-            <p className="footnote">You can always add more later in Integrations</p>
-          </div>
-        )}
-        {step === 2 && (
-          <div className="fade-in onboard-step">
-            <div className="onboard-check">✓</div>
-            <h1 className="onboard-title" style={{ fontSize: 22 }}>{org} is ready</h1>
-            <p className="onboard-sub">{connectedIds.length > 0 ? `Connected to ${connectedIds.map(id => INTEGRATIONS_DATA.find(i => i.id === id)?.name).filter(Boolean).join(", ")}.` : "No tools connected yet — you can add them later in Integrations."}</p>
-            <button onClick={() => onComplete(connectedIds, org)} className="btn-primary btn-full">Open Orchestra</button>
-          </div>
-        )}
+          )}
+
+          {/* Step 4: Ready */}
+          {step === 4 && (
+            <div className="fade-in">
+              <button onClick={() => setStep(3)} className="ob-back-btn">‹ Back</button>
+              <div className="ob-ready-check">✓</div>
+              <h1 className="ob-title">{org} is ready</h1>
+              <p className="ob-subtitle">
+                {connectedIds.length > 0
+                  ? `Connected to ${connectedIds.map(id => INTEGRATIONS_DATA.find(i => i.id === id)?.name).filter(Boolean).join(", ")}. Start your first conversation.`
+                  : "No tools connected yet — you can add them later in settings. Let's explore the dashboard."}
+              </p>
+              <button onClick={() => onComplete(connectedIds, org)} className="ob-continue-btn">Open Orchestra →</button>
+            </div>
+          )}
+        </div>
+
+        <div className="ob-left-footer">
+          {step > 0 && <button onClick={() => setStep(s => s - 1)} className="ob-back-link">‹ Back</button>}
+          <OnboardProgress current={step} total={TOTAL_STEPS} />
+        </div>
       </div>
+      <OnboardRightPanel testimonialIdx={step} />
     </div>
   );
 }
@@ -1366,16 +1512,307 @@ const GLOBAL_CSS = `
   .page-title { font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; letter-spacing: -0.3px; }
   .page-subtitle { font-size: 14px; color: var(--text-tertiary); }
 
-  /* ═══ ONBOARDING ═══ */
-  .onboard-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg-page); padding: 24px; }
-  .onboard-container { width: 100%; max-width: 480px; display: flex; flex-direction: column; align-items: center; }
-  .onboard-step { max-width: 400px; width: 100%; text-align: center; }
-  .onboard-logo { font-size: 32px; margin-bottom: 24px; }
-  .onboard-title { font-size: 28px; font-weight: 700; color: var(--text-primary); line-height: 1.3; margin-bottom: 12px; letter-spacing: -0.5px; }
-  .onboard-sub { font-size: 15px; color: var(--text-tertiary); line-height: 1.55; margin-bottom: 32px; }
-  .onboard-input { width: 100%; padding: 14px 0; border: none; border-bottom: 2px solid var(--border); font-size: 16px; font-family: var(--sans); outline: none; text-align: center; color: var(--text-primary); background: transparent; margin-bottom: 24px; transition: border-color 0.2s; }
-  .onboard-input:focus { border-bottom-color: var(--accent); }
-  .onboard-check { width: 48px; height: 48px; border-radius: 14px; background: #f0fdf4; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; color: var(--success); font-size: 22px; font-weight: 700; }
+  /* ═══ ONBOARDING — Profound split-screen ═══ */
+  .ob-shell {
+    display: flex;
+    min-height: 100vh;
+    background: #fff;
+  }
+  .ob-left {
+    flex: 1;
+    max-width: 560px;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+  }
+  .ob-left-header {
+    padding: 24px 40px 0;
+    flex-shrink: 0;
+  }
+  .ob-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ob-brand-icon { font-size: 18px; }
+  .ob-brand-name {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: lowercase;
+    color: var(--text-primary);
+  }
+  .ob-left-body {
+    flex: 1;
+    padding: 40px 40px 20px;
+    overflow-y: auto;
+  }
+  .ob-left-footer {
+    padding: 20px 40px 28px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .ob-back-link {
+    background: none;
+    border: none;
+    font-size: 13px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    font-family: var(--sans);
+    font-weight: 500;
+    padding: 0;
+  }
+  .ob-back-link:hover { color: var(--text-secondary); }
+  .ob-back-btn {
+    background: none;
+    border: none;
+    font-size: 14px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    font-family: var(--sans);
+    font-weight: 500;
+    padding: 0;
+    margin-bottom: 24px;
+    display: block;
+  }
+  .ob-back-btn:hover { color: var(--text-secondary); }
+  .ob-title {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.25;
+    letter-spacing: -0.5px;
+    margin-bottom: 10px;
+  }
+  .ob-subtitle {
+    font-size: 15px;
+    color: var(--text-tertiary);
+    line-height: 1.6;
+    margin-bottom: 8px;
+  }
+  .ob-continue-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: 10px;
+    background: var(--text-primary);
+    color: #fff;
+    border: none;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--sans);
+    transition: opacity 0.15s;
+    margin-top: 28px;
+  }
+  .ob-continue-btn:hover { opacity: 0.88; }
+
+  /* Progress dots */
+  .ob-progress {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ob-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 99px;
+    background: var(--border);
+    transition: all 0.2s;
+  }
+  .ob-dot-done { background: var(--text-primary); }
+  .ob-dot-active { background: var(--text-primary); width: 20px; }
+
+  /* Choice grid (company size, industry) */
+  .ob-choice-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .ob-choice-btn {
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--sans);
+    transition: all 0.12s;
+  }
+  .ob-choice-btn:hover { border-color: var(--text-primary); color: var(--text-primary); }
+  .ob-choice-active {
+    border-color: var(--text-primary);
+    background: var(--text-primary);
+    color: #fff;
+  }
+  .ob-choice-active:hover { background: var(--text-primary); color: #fff; }
+
+  /* Value prop list */
+  .ob-integrations-preview {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .ob-value-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 28px;
+  }
+  .ob-value-item {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .ob-value-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .ob-value-item strong {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: block;
+    margin-bottom: 2px;
+  }
+  .ob-value-desc {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    line-height: 1.5;
+  }
+
+  /* Tool list (connect step) */
+  .ob-tool-list {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 20px;
+  }
+  .ob-tool-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--border-light);
+  }
+  .ob-tool-row:first-child { border-top: none; }
+  .ob-tool-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .ob-tool-tagline { font-size: 12px; color: var(--text-tertiary); margin-top: 1px; }
+  .ob-tool-connected {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--success);
+    white-space: nowrap;
+  }
+  .ob-tool-connect-btn {
+    padding: 7px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--sans);
+    white-space: nowrap;
+    transition: all 0.12s;
+  }
+  .ob-tool-connect-btn:hover { background: var(--text-primary); color: #fff; border-color: var(--text-primary); }
+
+  /* Ready step */
+  .ob-ready-check {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: #f0fdf4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--success);
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 24px;
+  }
+
+  /* Right panel */
+  .ob-right {
+    flex: 1;
+    background: #fafafa;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+  .ob-right-bg {
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle, #e2e8f0 1px, transparent 1px);
+    background-size: 24px 24px;
+    opacity: 0.5;
+  }
+  .ob-testimonial-card {
+    position: relative;
+    z-index: 1;
+    background: #fff;
+    border-radius: 16px;
+    padding: 36px 32px;
+    max-width: 400px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .ob-testimonial-quote {
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--text-primary);
+    font-weight: 450;
+    margin-bottom: 24px;
+  }
+  .ob-testimonial-author {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .ob-testimonial-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 99px;
+    background: var(--text-primary);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .ob-testimonial-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .ob-testimonial-title {
+    font-size: 13px;
+    color: var(--text-tertiary);
+  }
+
+  /* Responsive: stack on mobile */
+  @media (max-width: 800px) {
+    .ob-shell { flex-direction: column; }
+    .ob-left { max-width: 100%; }
+    .ob-right { display: none; }
+    .ob-left-body { padding: 24px 24px 16px; }
+    .ob-left-header { padding: 20px 24px 0; }
+    .ob-left-footer { padding: 16px 24px 24px; }
+  }
+
   .step-tag { font-size: 11px; font-weight: 600; color: var(--text-tertiary); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 14px; }
   .footnote { font-size: 12px; color: var(--text-tertiary); text-align: center; margin-top: 12px; }
 

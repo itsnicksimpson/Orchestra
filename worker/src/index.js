@@ -6,6 +6,19 @@
 
 import { connect } from "@planetscale/database";
 
+// ─── CF-compatible fetch for PlanetScale (strips unsupported `cache` option) ─
+function cfFetch(url, init) {
+  if (init) {
+    const { cache, ...rest } = init;
+    return fetch(url, rest);
+  }
+  return fetch(url);
+}
+
+function psConnect(opts) {
+  return connect({ ...opts, fetch: cfFetch });
+}
+
 // ─── CORS ────────────────────────────────────────────────────────────────────
 
 const CORS = {
@@ -71,7 +84,7 @@ async function handleIntegrations(env) {
   const dbPass = await env.ORCHESTRA_KV.get("db_password");
   if (dbHost && dbUser) {
     try {
-      const conn = connect({ host: dbHost, username: dbUser, password: dbPass });
+      const conn = psConnect({ host: dbHost, username: dbUser, password: dbPass });
       await conn.execute("SELECT 1");
       dbConnected = true;
     } catch {
@@ -167,7 +180,7 @@ async function handleConfigure(request, env) {
       if (!credentials.host || !credentials.username) return jsonError("host and username required", 400);
       // Validate
       try {
-        const conn = connect({ host: credentials.host, username: credentials.username, password: credentials.password || "" });
+        const conn = psConnect({ host: credentials.host, username: credentials.username, password: credentials.password || "" });
         await conn.execute("SELECT 1");
       } catch (e) {
         return jsonError(`Database connection failed: ${e.message}`, 400);
@@ -544,7 +557,7 @@ async function getDb(env) {
   const username = await env.ORCHESTRA_KV.get("db_username");
   const password = await env.ORCHESTRA_KV.get("db_password");
   if (!host) throw new Error("Database not connected");
-  return connect({ host, username, password: password || "" });
+  return psConnect({ host, username, password: password || "" });
 }
 
 // ─── Tool Definitions ────────────────────────────────────────────────────────

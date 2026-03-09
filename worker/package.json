@@ -7,9 +7,11 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
-    "@planetscale/database": "^1.19.0"
+    "@planetscale/database": "^1.19.0",
+    "drizzle-orm": "^0.45.1"
   },
   "devDependencies": {
+    "drizzle-kit": "^0.31.9",
     "wrangler": "^3.0.0"
   }
 }
