@@ -1005,19 +1005,223 @@ function MainApp({ initialConnected, companyName }) {
   );
 }
 
+/* ═══════════ LANDING PAGE ═══════════ */
+function LandingPage({ onGetStarted }) {
+  const [annual, setAnnual] = useState(true);
+
+  return (
+    <div className="landing">
+      {/* Nav */}
+      <nav className="landing-nav">
+        <div className="landing-nav-inner">
+          <div className="landing-brand">
+            <span className="landing-brand-icon">🎵</span>
+            <span className="landing-brand-text">orchestra</span>
+          </div>
+          <div className="landing-nav-links">
+            <a href="#features" className="landing-link">Features</a>
+            <a href="#pricing" className="landing-link">Pricing</a>
+          </div>
+          <button onClick={onGetStarted} className="landing-cta-nav">Get started →</button>
+        </div>
+      </nav>
+
+      {/* Hero */}
+      <section className="landing-hero">
+        <div className="landing-hero-inner">
+          <div className="landing-pill">AI-powered business orchestration</div>
+          <h1 className="landing-hero-title">
+            Your entire business,<br />
+            <span className="landing-hero-gradient">one conversation away.</span>
+          </h1>
+          <p className="landing-hero-sub">
+            Connect Intercom, Stripe, Mailchimp, Slack, and your database.
+            Ask questions, pull reports, and take action — all through a single AI interface.
+          </p>
+          <div className="landing-hero-actions">
+            <button onClick={onGetStarted} className="landing-cta-primary">Get started free →</button>
+            <a href="#features" className="landing-cta-secondary">See how it works</a>
+          </div>
+          <p className="landing-hero-note">No credit card required · 5-minute setup</p>
+        </div>
+      </section>
+
+      {/* Integrations strip */}
+      <section className="landing-logos">
+        <p className="landing-logos-label">Works with the tools you already use</p>
+        <div className="landing-logos-row">
+          {INTEGRATIONS_DATA.map(t => (
+            <div key={t.id} className="landing-logo-item">
+              <t.Logo size={28} />
+              <span>{t.name}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Features */}
+      <section id="features" className="landing-section">
+        <div className="landing-section-inner">
+          <h2 className="landing-section-title">Everything your startup needs</h2>
+          <p className="landing-section-sub">One AI assistant that understands all your tools and acts on your behalf.</p>
+          <div className="landing-features-grid">
+            {[
+              { icon: "💬", title: "Conversational Interface", desc: "Ask questions in plain English. Get data from any connected tool instantly." },
+              { icon: "🔗", title: "5-Minute Integration", desc: "Paste your API keys and go. No OAuth apps, no developer setup, no code." },
+              { icon: "🤖", title: "AI Agents", desc: "Schedule recurring tasks — morning CX digests, weekly reports, fire drills — all on autopilot." },
+              { icon: "🛡️", title: "Safety Guardrails", desc: "Read operations are instant. Destructive actions always require your explicit approval." },
+              { icon: "⚡", title: "Cross-Tool Intelligence", desc: "Correlate Intercom conversations with Stripe payments and database records in one query." },
+              { icon: "📊", title: "Action Cards", desc: "AI suggests next steps as clickable cards. One click to reply, close, tag, or escalate." },
+            ].map((f, i) => (
+              <div key={i} className="landing-feature-card">
+                <div className="landing-feature-icon">{f.icon}</div>
+                <h3 className="landing-feature-title">{f.title}</h3>
+                <p className="landing-feature-desc">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="landing-section landing-section-alt">
+        <div className="landing-section-inner">
+          <h2 className="landing-section-title">Simple, transparent pricing</h2>
+          <p className="landing-section-sub">Start free. Scale as you grow. Credits power every AI action.</p>
+
+          <div className="landing-toggle-row">
+            <span className={!annual ? "landing-toggle-active" : "landing-toggle-label"}>Monthly</span>
+            <button className="landing-toggle-btn" onClick={() => setAnnual(!annual)}>
+              <div className={`landing-toggle-thumb ${annual ? "landing-toggle-on" : ""}`} />
+            </button>
+            <span className={annual ? "landing-toggle-active" : "landing-toggle-label"}>
+              Annual <span className="landing-save-badge">Save 20%</span>
+            </span>
+          </div>
+
+          <div className="landing-pricing-grid">
+            {/* Starter */}
+            <div className="landing-price-card">
+              <div className="landing-price-tier">Starter</div>
+              <div className="landing-price-amount">
+                <span className="landing-price-dollar">$</span>
+                <span className="landing-price-number">{annual ? "39" : "49"}</span>
+                <span className="landing-price-period">/user/mo</span>
+              </div>
+              <p className="landing-price-desc">For early-stage startups getting started with AI operations.</p>
+              <button onClick={onGetStarted} className="landing-price-btn">Get started</button>
+              <ul className="landing-price-features">
+                <li>Up to 5 integrations</li>
+                <li>1,000 credits/month included</li>
+                <li>3 scheduled agents</li>
+                <li>1 workspace</li>
+                <li>Claude Sonnet 4</li>
+                <li>Email support</li>
+              </ul>
+            </div>
+
+            {/* Pro */}
+            <div className="landing-price-card landing-price-card-pop">
+              <div className="landing-price-popular">Most popular</div>
+              <div className="landing-price-tier">Pro</div>
+              <div className="landing-price-amount">
+                <span className="landing-price-dollar">$</span>
+                <span className="landing-price-number">{annual ? "79" : "99"}</span>
+                <span className="landing-price-period">/user/mo</span>
+              </div>
+              <p className="landing-price-desc">For growing teams that need more power and flexibility.</p>
+              <button onClick={onGetStarted} className="landing-price-btn landing-price-btn-pop">Get started</button>
+              <ul className="landing-price-features">
+                <li>Unlimited integrations</li>
+                <li>5,000 credits/month included</li>
+                <li>Unlimited agents</li>
+                <li>3 workspaces</li>
+                <li>All AI models (GPT-4o, Gemini, Claude)</li>
+                <li>Priority support</li>
+                <li>BYOK (bring your own key)</li>
+              </ul>
+            </div>
+
+            {/* Enterprise */}
+            <div className="landing-price-card">
+              <div className="landing-price-tier">Enterprise</div>
+              <div className="landing-price-amount">
+                <span className="landing-price-number" style={{ fontSize: 28 }}>Custom</span>
+              </div>
+              <p className="landing-price-desc">For organizations with advanced security and compliance needs.</p>
+              <button className="landing-price-btn" style={{ opacity: 0.7, cursor: "default" }}>Contact sales</button>
+              <ul className="landing-price-features">
+                <li>Everything in Pro</li>
+                <li>Unlimited credits</li>
+                <li>Unlimited workspaces</li>
+                <li>SSO & SAML</li>
+                <li>Custom SLA</li>
+                <li>Dedicated support</li>
+                <li>Audit logs</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="landing-credits-info">
+            <h3 className="landing-credits-title">How credits work</h3>
+            <p className="landing-credits-sub">Every AI action uses credits based on complexity. Need more? Add credits at $10/1,000.</p>
+            <div className="landing-credits-grid">
+              {[
+                { action: "Simple question", credits: "1 credit", example: "\"How many open conversations?\"" },
+                { action: "Data pull + analysis", credits: "3 credits", example: "\"Show me Stripe revenue this month\"" },
+                { action: "Cross-tool report", credits: "5 credits", example: "\"Weekly report across all tools\"" },
+                { action: "Write action", credits: "5 credits", example: "\"Reply to this Intercom conversation\"" },
+                { action: "Agent run", credits: "10 credits", example: "\"Morning CX Digest\" scheduled agent" },
+              ].map((c, i) => (
+                <div key={i} className="landing-credit-row">
+                  <div className="landing-credit-action">{c.action}</div>
+                  <div className="landing-credit-amount">{c.credits}</div>
+                  <div className="landing-credit-example">{c.example}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="landing-section">
+        <div className="landing-section-inner" style={{ textAlign: "center", padding: "80px 24px" }}>
+          <h2 className="landing-section-title">Ready to orchestrate your business?</h2>
+          <p className="landing-section-sub" style={{ marginBottom: 32 }}>Connect your tools in 5 minutes and start your first conversation.</p>
+          <button onClick={onGetStarted} className="landing-cta-primary">Get started free →</button>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="landing-footer">
+        <div className="landing-footer-inner">
+          <div className="landing-footer-brand">
+            <span>🎵</span>
+            <span className="landing-footer-name">orchestra</span>
+          </div>
+          <p className="landing-footer-copy">© 2026 Orchestra. All rights reserved.</p>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
 /* ═══════════ ROOT ═══════════ */
 export default function App() {
-  const [ready, setReady] = useState(false);
+  const [view, setView] = useState("landing"); // landing | onboarding | app
   const [connected, setConnected] = useState([]);
   const [companyName, setCompanyName] = useState("");
+
   return (
     <>
       <style>{GLOBAL_CSS}</style>
-      {ready ? (
-        <MainApp initialConnected={connected} companyName={companyName} />
-      ) : (
-        <Onboarding onComplete={(c, org) => { setConnected(c); setCompanyName(org); setReady(true); }} />
+      <style>{LANDING_CSS}</style>
+      {view === "landing" && <LandingPage onGetStarted={() => setView("onboarding")} />}
+      {view === "onboarding" && (
+        <Onboarding onComplete={(c, org) => { setConnected(c); setCompanyName(org); setView("app"); }} />
       )}
+      {view === "app" && <MainApp initialConnected={connected} companyName={companyName} />}
     </>
   );
 }
@@ -1345,4 +1549,482 @@ const GLOBAL_CSS = `
   .text-input { flex: 1; border: none; outline: none; font-size: 14px; font-family: var(--sans); padding: 12px 0; background: transparent; color: var(--text-primary); }
   .send-btn { width: 34px; height: 34px; border-radius: 10px; background: var(--text-primary); color: #fff; border: none; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity 0.12s; }
   .input-hint { font-size: 11px; color: var(--text-tertiary); text-align: center; margin-top: 8px; }
+`;
+
+const LANDING_CSS = `
+  /* ═══ LANDING PAGE ═══ */
+  .landing {
+    min-height: 100vh;
+    background: #ffffff;
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Nav */
+  .landing-nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+  .landing-nav-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .landing-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .landing-brand-icon { font-size: 20px; }
+  .landing-brand-text {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: lowercase;
+    color: var(--text-primary);
+  }
+  .landing-nav-links {
+    display: flex;
+    gap: 32px;
+  }
+  .landing-link {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .landing-link:hover { color: var(--text-primary); }
+  .landing-cta-nav {
+    padding: 8px 20px;
+    border-radius: 8px;
+    background: var(--text-primary);
+    color: #fff;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--sans);
+    transition: opacity 0.15s;
+  }
+  .landing-cta-nav:hover { opacity: 0.85; }
+
+  @media (max-width: 640px) {
+    .landing-nav-links { display: none; }
+  }
+
+  /* Hero */
+  .landing-hero {
+    padding: 100px 24px 60px;
+    text-align: center;
+  }
+  .landing-hero-inner {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .landing-pill {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 99px;
+    background: rgba(59,130,246,0.06);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 24px;
+  }
+  .landing-hero-title {
+    font-size: 52px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -1.5px;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+  }
+  .landing-hero-gradient {
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .landing-hero-sub {
+    font-size: 18px;
+    line-height: 1.65;
+    color: var(--text-secondary);
+    max-width: 520px;
+    margin: 0 auto 36px;
+  }
+  .landing-hero-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .landing-cta-primary {
+    padding: 14px 32px;
+    border-radius: 12px;
+    background: var(--text-primary);
+    color: #fff;
+    border: none;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--sans);
+    transition: all 0.15s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  }
+  .landing-cta-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
+  .landing-cta-secondary {
+    padding: 14px 24px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .landing-cta-secondary:hover { color: var(--text-primary); }
+  .landing-hero-note {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    margin-top: 16px;
+  }
+
+  @media (max-width: 640px) {
+    .landing-hero { padding: 60px 20px 40px; }
+    .landing-hero-title { font-size: 34px; letter-spacing: -0.8px; }
+    .landing-hero-sub { font-size: 16px; }
+  }
+
+  /* Logos strip */
+  .landing-logos {
+    padding: 48px 24px;
+    text-align: center;
+    border-top: 1px solid rgba(0,0,0,0.04);
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+    background: var(--bg-page);
+  }
+  .landing-logos-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 24px;
+  }
+  .landing-logos-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+  .landing-logo-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  /* Sections */
+  .landing-section {
+    padding: 80px 24px;
+  }
+  .landing-section-alt {
+    background: var(--bg-page);
+  }
+  .landing-section-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .landing-section-title {
+    font-size: 36px;
+    font-weight: 800;
+    letter-spacing: -0.8px;
+    color: var(--text-primary);
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  .landing-section-sub {
+    font-size: 16px;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-bottom: 48px;
+    max-width: 520px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.6;
+  }
+
+  /* Features grid */
+  .landing-features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  @media (max-width: 800px) { .landing-features-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 520px) { .landing-features-grid { grid-template-columns: 1fr; } }
+
+  .landing-feature-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 24px;
+    transition: all 0.2s;
+  }
+  .landing-feature-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+    transform: translateY(-2px);
+  }
+  .landing-feature-icon { font-size: 28px; margin-bottom: 16px; }
+  .landing-feature-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+  .landing-feature-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* Pricing toggle */
+  .landing-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 40px;
+  }
+  .landing-toggle-label { font-size: 14px; color: var(--text-tertiary); font-weight: 500; }
+  .landing-toggle-active { font-size: 14px; color: var(--text-primary); font-weight: 600; }
+  .landing-toggle-btn {
+    width: 44px;
+    height: 24px;
+    border-radius: 99px;
+    background: var(--border);
+    border: none;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+    padding: 0;
+  }
+  .landing-toggle-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 99px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s;
+  }
+  .landing-toggle-on { transform: translateX(20px); }
+  .landing-save-badge {
+    font-size: 11px;
+    font-weight: 700;
+    color: #16a34a;
+    background: #f0fdf4;
+    padding: 2px 8px;
+    border-radius: 99px;
+    margin-left: 6px;
+  }
+
+  /* Pricing grid */
+  .landing-pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 60px;
+  }
+  @media (max-width: 800px) { .landing-pricing-grid { grid-template-columns: 1fr; max-width: 400px; margin-left: auto; margin-right: auto; } }
+
+  .landing-price-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 32px 28px;
+    position: relative;
+  }
+  .landing-price-card-pop {
+    border-color: var(--text-primary);
+    border-width: 2px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+    transform: scale(1.03);
+  }
+  .landing-price-popular {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text-primary);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 14px;
+    border-radius: 99px;
+    letter-spacing: 0.5px;
+  }
+  .landing-price-tier {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+  .landing-price-amount {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+    margin-bottom: 12px;
+  }
+  .landing-price-dollar { font-size: 20px; font-weight: 700; color: var(--text-primary); }
+  .landing-price-number { font-size: 48px; font-weight: 800; color: var(--text-primary); letter-spacing: -2px; line-height: 1; }
+  .landing-price-period { font-size: 14px; color: var(--text-tertiary); font-weight: 500; margin-left: 4px; }
+  .landing-price-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 20px;
+    min-height: 42px;
+  }
+  .landing-price-btn {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--sans);
+    transition: all 0.15s;
+    margin-bottom: 24px;
+  }
+  .landing-price-btn:hover { background: var(--text-primary); color: #fff; }
+  .landing-price-btn-pop {
+    background: var(--text-primary);
+    color: #fff;
+    border-color: var(--text-primary);
+  }
+  .landing-price-btn-pop:hover { opacity: 0.9; }
+  .landing-price-features {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .landing-price-features li {
+    font-size: 14px;
+    color: var(--text-secondary);
+    padding: 7px 0;
+    border-top: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .landing-price-features li::before {
+    content: "✓";
+    color: var(--success);
+    font-weight: 700;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  /* Credits section */
+  .landing-credits-info {
+    text-align: center;
+  }
+  .landing-credits-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+  .landing-credits-sub {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-bottom: 28px;
+  }
+  .landing-credits-grid {
+    max-width: 600px;
+    margin: 0 auto;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    background: #fff;
+  }
+  .landing-credit-row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 16px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--border-light);
+    align-items: center;
+    text-align: left;
+  }
+  .landing-credit-row:first-child { border-top: none; }
+  .landing-credit-action { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .landing-credit-amount {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(59,130,246,0.06);
+    padding: 3px 12px;
+    border-radius: 99px;
+    white-space: nowrap;
+  }
+  .landing-credit-example {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    text-align: right;
+  }
+  @media (max-width: 600px) {
+    .landing-credit-row { grid-template-columns: 1fr auto; gap: 8px; }
+    .landing-credit-example { display: none; }
+  }
+
+  /* Footer */
+  .landing-footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 24px;
+  }
+  .landing-footer-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .landing-footer-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+  }
+  .landing-footer-name {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: lowercase;
+    color: var(--text-primary);
+  }
+  .landing-footer-copy {
+    font-size: 13px;
+    color: var(--text-tertiary);
+  }
+  @media (max-width: 520px) {
+    .landing-footer-inner { flex-direction: column; gap: 12px; }
+  }
 `;
