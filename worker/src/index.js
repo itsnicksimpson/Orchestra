@@ -274,8 +274,10 @@ async function handleChat(request, env) {
   return corsJson({ ...response, _model: "claude-sonnet-4-6" });
 }
 
-// ─── /digest — AI-generated homescreen briefing ─────────────────────────────
-// Fetches data DIRECTLY from APIs first, then one lean LLM call (no tools).
+// ─── /digest — Smart cross-tool briefing with enrichment pipeline ────────────
+// Phase A: Parallel fetch from all connected APIs
+// Phase B: Cross-reference customers across tools (Stripe email → Intercom convos → DB records)
+// Phase C: One LLM call with enriched, human-readable context (no tools)
 
 async function handleDigest(request, env) {
   let body;
@@ -285,40 +287,215 @@ async function handleDigest(request, env) {
   const liveTools = await resolveLiveTools(connectedTools, env);
   if (!liveTools.length) return corsJson({ alerts: [], headline: "Connect your tools to see your daily digest." });
 
-  // Step 1: Fetch snapshots directly from each connected API (no AI involved)
-  const snapshots = {};
-  for (const tool of liveTools) {
+  const has = (t) => liveTools.includes(t);
+
+  // ── Phase A: Parallel raw fetch ──────────────────────────────────────────
+  const fetches = {};
+  if (has("stripe")) {
+    fetches.stripeCharges = stripe(env, "GET", "charges?limit=10&expand[]=customer").catch(e => ({ _err: e.message }));
+    fetches.stripeDisputes = stripe(env, "GET", "disputes?limit=5").catch(e => ({ _err: e.message }));
+  }
+  if (has("intercom")) {
+    fetches.intercomConvos = intercom(env, "POST", "conversations/search", {
+      query: { field: "state", operator: "=", value: "open" },
+      pagination: { per_page: 10 },
+    }).catch(e => ({ _err: e.message }));
+  }
+  if (has("mailchimp")) {
+    fetches.mailchimpCampaigns = mailchimp(env, "GET", "campaigns?count=3&sort_field=send_time&sort_dir=DESC").catch(e => ({ _err: e.message }));
+  }
+
+  // DB schema discovery — find a user/customer table for cross-ref
+  let dbUserTable = null;
+  if (has("database")) {
     try {
-      if (tool === "intercom") {
-        const data = await intercom(env, "POST", "conversations/search", {
-          query: { field: "state", operator: "=", value: "open" },
-          pagination: { per_page: 5 },
+      const conn = await getDb(env);
+      const tables = await conn.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('users','customers','accounts','members') LIMIT 1");
+      if (tables.rows?.length) dbUserTable = tables.rows[0].table_name;
+    } catch {}
+  }
+
+  // Await all parallel fetches
+  const keys = Object.keys(fetches);
+  const results = await Promise.all(Object.values(fetches));
+  const raw = {};
+  keys.forEach((k, i) => { raw[k] = results[i]; });
+
+  // ── Phase B: Cross-reference customers across tools ──────────────────────
+  const customerMap = {}; // email → { name, stripeId, charges[], disputes[], intercomConvos[], dbRecord }
+
+  // Extract customers from Stripe charges (expanded with customer object)
+  if (raw.stripeCharges?.data) {
+    for (const charge of raw.stripeCharges.data) {
+      const cust = charge.customer;
+      if (cust && typeof cust === "object" && !cust.deleted && cust.email) {
+        if (!customerMap[cust.email]) {
+          customerMap[cust.email] = { name: cust.name || cust.email, stripeId: cust.id, charges: [], disputes: [], intercomConvos: [], dbRecord: null };
+        }
+        customerMap[cust.email].charges.push({
+          id: charge.id, amount: (charge.amount / 100).toFixed(2),
+          currency: (charge.currency || "usd").toUpperCase(), status: charge.status,
+          disputed: !!charge.disputed, disputeId: charge.dispute || null,
+          created: new Date(charge.created * 1000).toISOString(),
         });
-        snapshots.intercom = JSON.stringify(data).slice(0, 2000);
-      } else if (tool === "stripe") {
-        const data = await stripe(env, "GET", "charges?limit=5");
-        snapshots.stripe = JSON.stringify(data).slice(0, 2000);
-      } else if (tool === "mailchimp") {
-        const data = await mailchimp(env, "GET", "campaigns?count=3&sort_field=send_time&sort_dir=DESC");
-        snapshots.mailchimp = JSON.stringify(data).slice(0, 2000);
       }
-    } catch (e) {
-      snapshots[tool] = `Error fetching: ${e.message}`;
     }
   }
 
-  if (!Object.keys(snapshots).length) {
-    return corsJson({ alerts: [], headline: "No data available right now." });
+  // Attach disputes to the right customer
+  if (raw.stripeDisputes?.data) {
+    for (const dispute of raw.stripeDisputes.data) {
+      const email = Object.keys(customerMap).find(e =>
+        customerMap[e].charges.some(c => c.id === dispute.charge || c.disputeId === dispute.id)
+      );
+      if (email) {
+        customerMap[email].disputes.push({
+          id: dispute.id, amount: (dispute.amount / 100).toFixed(2),
+          reason: dispute.reason, status: dispute.status,
+        });
+      }
+    }
   }
 
-  // Step 2: One LLM call with the raw data — NO tools, no agentic loop
-  const dataStr = Object.entries(snapshots).map(([k, v]) => `[${k}]: ${v}`).join("\n\n");
-  const digestPrompt = `Data from ${companyName || "this company"}'s tools:\n\n${dataStr}\n\nReturn ONLY JSON (no markdown):\n{"headline":"one-line summary","alerts":[{"severity":"high|medium|low","title":"short title","body":"1-2 sentences with real numbers","sources":["toolname"],"actions":[{"label":"button text","prompt":"chat prompt"}]}]}\n1-3 alerts by severity.`;
+  // Pick customers worth cross-referencing: disputes or failed charges (max 3)
+  const emailsToSearch = Object.entries(customerMap)
+    .filter(([, c]) => c.disputes.length > 0 || c.charges.some(ch => ch.status === "failed"))
+    .map(([email]) => email)
+    .slice(0, 3);
+
+  // Cross-ref: search Intercom for these customers
+  if (has("intercom") && emailsToSearch.length > 0) {
+    for (const email of emailsToSearch) {
+      try {
+        const contacts = await intercom(env, "POST", "contacts/search", {
+          query: { field: "email", operator: "=", value: email },
+        });
+        if (contacts?.data?.length > 0) {
+          const contact = contacts.data[0];
+          const convos = await intercom(env, "POST", "conversations/search", {
+            query: { operator: "AND", value: [
+              { field: "contact_ids", operator: "IN", value: [contact.id] },
+              { field: "state", operator: "=", value: "open" },
+            ]},
+            pagination: { per_page: 3 },
+          });
+          if (convos?.conversations?.length) {
+            customerMap[email].intercomConvos = convos.conversations.map(c => ({
+              id: c.id,
+              subject: c.source?.subject || c.source?.body?.slice(0, 120) || "Support message",
+              createdAt: c.created_at ? new Date(c.created_at * 1000).toISOString() : null,
+            }));
+          }
+        }
+      } catch {}
+    }
+  }
+
+  // Cross-ref: search database for customer records
+  if (dbUserTable && emailsToSearch.length > 0) {
+    try {
+      const conn = await getDb(env);
+      for (const email of emailsToSearch) {
+        try {
+          const result = await conn.execute(`SELECT * FROM \`${dbUserTable}\` WHERE email = ? LIMIT 1`, [email]);
+          if (result.rows?.length) customerMap[email].dbRecord = result.rows[0];
+        } catch {}
+      }
+    } catch {}
+  }
+
+  // ── Phase C: Build enriched context string ───────────────────────────────
+  const sections = [];
+
+  // Cross-referenced customers (highest priority — same person across tools)
+  const crossRefCustomers = Object.entries(customerMap).filter(([, c]) => c.disputes.length > 0 || c.intercomConvos.length > 0);
+  if (crossRefCustomers.length) {
+    sections.push("CROSS-REFERENCED CUSTOMERS (same person across multiple tools):");
+    for (const [email, c] of crossRefCustomers) {
+      let entry = `\n• ${c.name} (${email})`;
+      if (c.disputes.length) {
+        const d = c.disputes[0];
+        const ch = c.charges.find(ch => ch.disputeId === d.id);
+        entry += `\n  STRIPE DISPUTE: ${d.id} for $${d.amount}, reason: ${d.reason}, status: ${d.status}`;
+        if (ch) entry += ` (charge ${ch.id} on ${ch.created})`;
+      }
+      if (c.intercomConvos.length) {
+        entry += `\n  INTERCOM: ${c.intercomConvos.length} open conversation(s)`;
+        for (const conv of c.intercomConvos) {
+          entry += `\n    - Convo #${conv.id}: "${conv.subject}"${conv.createdAt ? ` (${conv.createdAt})` : ""}`;
+        }
+      }
+      if (c.dbRecord) {
+        const safe = Object.entries(c.dbRecord)
+          .filter(([k]) => !["password","hash","token","secret","salt"].some(s => k.toLowerCase().includes(s)))
+          .slice(0, 6).map(([k, v]) => `${k}: ${v}`).join(", ");
+        entry += `\n  DATABASE: ${safe}`;
+      }
+      sections.push(entry);
+    }
+  }
+
+  // Standalone Intercom conversations (not already cross-referenced)
+  const crossRefEmails = new Set(crossRefCustomers.map(([e]) => e));
+  if (raw.intercomConvos?.conversations?.length) {
+    const standalone = raw.intercomConvos.conversations.filter(c => {
+      const authorEmail = c.source?.author?.email;
+      return !authorEmail || !crossRefEmails.has(authorEmail);
+    });
+    if (standalone.length) {
+      sections.push("\nOPEN SUPPORT CONVERSATIONS:");
+      for (const c of standalone.slice(0, 5)) {
+        const author = c.source?.author?.name || c.source?.author?.email || "Unknown";
+        const subject = c.source?.subject || c.source?.body?.slice(0, 100) || "No subject";
+        sections.push(`• #${c.id} from ${author}: "${subject}"`);
+      }
+    }
+  }
+
+  // Stripe overview
+  if (raw.stripeCharges?.data?.length) {
+    const nonDisputed = raw.stripeCharges.data.filter(c => !c.disputed);
+    if (nonDisputed.length) {
+      const total = nonDisputed.reduce((s, c) => s + c.amount, 0) / 100;
+      sections.push(`\nSTRIPE OVERVIEW: ${nonDisputed.length} recent charges totaling $${total.toFixed(2)}`);
+    }
+  }
+
+  // Mailchimp campaigns
+  if (raw.mailchimpCampaigns?.campaigns?.length) {
+    sections.push("\nRECENT EMAIL CAMPAIGNS:");
+    for (const c of raw.mailchimpCampaigns.campaigns) {
+      const stats = c.report_summary;
+      const opens = stats ? `${(stats.open_rate * 100).toFixed(1)}% open` : "no stats yet";
+      sections.push(`• "${c.settings?.subject_line || c.settings?.title || "Untitled"}" — ${opens}, sent ${c.send_time || "draft"}`);
+    }
+  }
+
+  if (!sections.length) return corsJson({ alerts: [], headline: "No notable activity right now." });
+
+  const enrichedContext = sections.join("\n").slice(0, 6000);
+
+  const systemPrompt = `You are a sharp, friendly colleague giving a morning briefing to a business owner. You've already done the research — now summarize what matters.
+
+- Use first names, never raw IDs. The data below already has names resolved.
+- When the same person appears across Stripe AND Intercom, combine into ONE alert and explicitly call it out.
+- End each alert with a conversational question: "Want me to respond?" or "Should I pull up the details?"
+- Write like you're briefing your boss over coffee — warm but direct.
+- Generate a stable "id" per alert from source data IDs (e.g. "dispute-du_xxx", "convo-123").
+- Include a "timestamp" field (ISO 8601) for the underlying event.
+- Return ONLY valid JSON, no markdown fences.`;
+
+  const digestPrompt = `Here's what's happening at ${companyName || "your company"} right now. Data is already cross-referenced — connected customers are grouped together.
+
+${enrichedContext}
+
+Return JSON: {"headline":"morning greeting with key stat","alerts":[{"id":"stable-id","severity":"high|medium|low","title":"short title","body":"1-3 conversational sentences connecting dots, ending with what-to-do question","sources":["stripe","intercom"],"timestamp":"ISO 8601","actions":[{"label":"button text","prompt":"chat prompt to investigate"}]}]}
+1-5 alerts by severity.`;
 
   const llmRes = await callLLM(env, {
     provider: "anthropic",
     model: "claude-sonnet-4-6",
-    system: "Concise business analyst. Return only valid JSON.",
+    system: systemPrompt,
     messages: [{ role: "user", content: digestPrompt }],
     tools: [],
   });

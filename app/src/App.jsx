@@ -1036,13 +1036,43 @@ function SettingsTab({ companyName }) {
 }
 
 /* ═══════════ DIGEST TAB ═══════════ */
+
+function timeAgo(iso) {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
 function DigestTab({ connected, companyName, onAction }) {
-  const [digest, setDigest] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Persistent state — cached in localStorage so tab switches / refreshes show data instantly
+  const [digest, setDigest] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("orch_digest")); } catch { return null; }
+  });
+  const [lastFetched, setLastFetched] = useState(() => localStorage.getItem("orch_digest_ts") || null);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("orch_digest_dismissed") || "[]");
+      // Auto-expire dismissals older than 7 days
+      const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      return raw.filter(d => new Date(d.dismissedAt).getTime() > weekAgo);
+    } catch { return []; }
+  });
+
+  // Loading = first load with no cache. Refreshing = background update while showing cache.
+  const [loading, setLoading] = useState(() => !localStorage.getItem("orch_digest"));
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchDigest = useCallback(async () => {
-    setLoading(true);
+  const fetchDigest = useCallback(async (isBackground = false) => {
+    if (isBackground) setRefreshing(true); else setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${WORKER_URL}/digest`, {
@@ -1051,12 +1081,46 @@ function DigestTab({ connected, companyName, onAction }) {
         body: JSON.stringify({ connectedTools: connected, companyName }),
       });
       const data = await res.json();
-      if (data.error) { setError(data.error); } else { setDigest(data); }
-    } catch (err) { setError(err.message); }
+      if (data.error) {
+        if (!isBackground) setError(data.error);
+      } else {
+        const now = new Date().toISOString();
+        setDigest(data);
+        setLastFetched(now);
+        try {
+          localStorage.setItem("orch_digest", JSON.stringify(data));
+          localStorage.setItem("orch_digest_ts", now);
+        } catch {}
+      }
+    } catch (err) {
+      if (!isBackground) setError(err.message);
+    }
     setLoading(false);
+    setRefreshing(false);
   }, [connected, companyName]);
 
-  useEffect(() => { if (connected.length > 0) fetchDigest(); else setLoading(false); }, []);
+  useEffect(() => {
+    if (!connected.length) { setLoading(false); return; }
+    // Have cache? Show it and refresh in background. No cache? Full load.
+    if (digest) fetchDigest(true); else fetchDigest(false);
+  }, []);
+
+  const dismissAlert = useCallback((alertId) => {
+    setDismissed(prev => {
+      const next = [...prev, { id: alertId, dismissedAt: new Date().toISOString() }];
+      try { localStorage.setItem("orch_digest_dismissed", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  const clearDismissed = useCallback(() => {
+    setDismissed([]);
+    try { localStorage.removeItem("orch_digest_dismissed"); } catch {}
+  }, []);
+
+  const dismissedIds = new Set(dismissed.map(d => d.id));
+  const visibleAlerts = (digest?.alerts || []).filter(a => !dismissedIds.has(a.id));
+  const hasDismissed = dismissed.length > 0;
 
   const severityColor = { high: "#EF4444", medium: "#F59E0B", low: "#6366F1" };
   const severityBg = { high: "rgba(239,68,68,0.06)", medium: "rgba(245,158,11,0.06)", low: "rgba(99,102,241,0.04)" };
@@ -1073,22 +1137,51 @@ function DigestTab({ connected, companyName, onAction }) {
     );
   }
 
+  const subtitle = digest?.headline
+    ? digest.headline
+    : loading ? "Loading your daily briefing…" : "Your daily briefing";
+
   return (
     <div className="main-content fade-in">
       <div className="content-header">
         <div>
           <h1 className="page-title">Digest</h1>
-          <p className="page-subtitle">{digest?.headline || "Loading your daily briefing…"}</p>
+          <p className="page-subtitle">
+            {subtitle}
+            {lastFetched && !loading && (
+              <span style={{ marginLeft: 8, fontSize: 11, color: "var(--text-tertiary)", fontWeight: 400 }}>
+                Updated {timeAgo(lastFetched)}
+              </span>
+            )}
+          </p>
         </div>
-        <button onClick={fetchDigest} className="btn-secondary" disabled={loading} style={{ opacity: loading ? 0.5 : 1 }}>
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {hasDismissed && (
+            <button onClick={clearDismissed} className="btn-secondary" style={{ fontSize: 11, padding: "5px 10px" }}>
+              Show {dismissed.length} dismissed
+            </button>
+          )}
+          <button onClick={() => fetchDigest(!!digest)} className="btn-secondary" disabled={loading || refreshing} style={{ opacity: (loading || refreshing) ? 0.5 : 1 }}>
+            {loading ? "Loading…" : refreshing ? "Updating…" : "Refresh"}
+          </button>
+        </div>
       </div>
 
-      {loading && (
+      {/* Background refresh indicator — subtle, doesn't replace content */}
+      {refreshing && digest && (
+        <div style={{ padding: "6px 20px", display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-tertiary)" }}>
+          <div className="digest-loader" style={{ width: 14, height: 14, borderWidth: 2 }} />
+          Checking for updates across {connected.map(id => INTEGRATIONS_DATA.find(i => i.id === id)?.name).filter(Boolean).join(", ")}…
+        </div>
+      )}
+
+      {/* First load spinner — only when no cached data */}
+      {loading && !digest && (
         <div style={{ padding: "40px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
           <div className="digest-loader" />
-          <span style={{ fontSize: 13, color: "var(--text-tertiary)" }}>Pulling data from {connected.map(id => INTEGRATIONS_DATA.find(i => i.id === id)?.name).filter(Boolean).join(", ")}…</span>
+          <span style={{ fontSize: 13, color: "var(--text-tertiary)" }}>
+            Cross-referencing data from {connected.map(id => INTEGRATIONS_DATA.find(i => i.id === id)?.name).filter(Boolean).join(", ")}…
+          </span>
         </div>
       )}
 
@@ -1100,17 +1193,35 @@ function DigestTab({ connected, companyName, onAction }) {
         </div>
       )}
 
-      {!loading && digest?.alerts?.length > 0 && (
+      {visibleAlerts.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "0 20px 20px" }}>
-          {digest.alerts.map((alert, i) => (
-            <div key={i} className="digest-card" style={{ borderLeft: `3px solid ${severityColor[alert.severity] || severityColor.low}`, background: severityBg[alert.severity] || severityBg.low }}>
+          {visibleAlerts.map((alert) => (
+            <div key={alert.id || alert.title} className="digest-card" style={{ borderLeft: `3px solid ${severityColor[alert.severity] || severityColor.low}`, background: severityBg[alert.severity] || severityBg.low }}>
               <div className="digest-card-header">
-                <span className="digest-severity" style={{ color: severityColor[alert.severity] }}>{severityLabel[alert.severity] || "Info"}</span>
-                <div className="digest-sources">
-                  {(alert.sources || []).map(s => {
-                    const tool = INTEGRATIONS_DATA.find(t => t.id === s);
-                    return tool ? <div key={s} className="digest-source-circle" title={tool.name}><tool.Logo size={14} /></div> : null;
-                  })}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span className="digest-severity" style={{ color: severityColor[alert.severity] }}>{severityLabel[alert.severity] || "Info"}</span>
+                  {alert.timestamp && (
+                    <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontWeight: 400 }}>{timeAgo(alert.timestamp)}</span>
+                  )}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <div className="digest-sources">
+                    {(alert.sources || []).map(s => {
+                      const tool = INTEGRATIONS_DATA.find(t => t.id === s);
+                      return tool ? <div key={s} className="digest-source-circle" title={tool.name}><tool.Logo size={14} /></div> : null;
+                    })}
+                  </div>
+                  {alert.id && (
+                    <button
+                      onClick={() => dismissAlert(alert.id)}
+                      title="Dismiss"
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px", color: "var(--text-tertiary)", fontSize: 16, lineHeight: 1, borderRadius: 4, opacity: 0.5, transition: "opacity 0.15s" }}
+                      onMouseEnter={e => e.target.style.opacity = 1}
+                      onMouseLeave={e => e.target.style.opacity = 0.5}
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="digest-card-title">{alert.title}</div>
@@ -1129,9 +1240,11 @@ function DigestTab({ connected, companyName, onAction }) {
         </div>
       )}
 
-      {!loading && digest && (!digest.alerts || digest.alerts.length === 0) && !error && (
+      {!loading && digest && visibleAlerts.length === 0 && !error && (
         <div className="empty-state" style={{ padding: "60px 20px", textAlign: "center" }}>
-          <p style={{ fontSize: 14, color: "var(--text-tertiary)" }}>All clear — nothing urgent right now.</p>
+          <p style={{ fontSize: 14, color: "var(--text-tertiary)" }}>
+            {hasDismissed ? "All alerts dismissed. Click \"Show dismissed\" to restore them." : "All clear — nothing urgent right now."}
+          </p>
         </div>
       )}
     </div>
