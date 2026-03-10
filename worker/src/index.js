@@ -63,6 +63,10 @@ export default {
     if (path === "/chat" && request.method === "POST")
       return handleChat(request, env);
 
+    // Digest — AI-generated homescreen briefing
+    if (path === "/digest" && request.method === "POST")
+      return handleDigest(request, env);
+
     return jsonError("Not found", 404);
   },
 };
@@ -240,10 +244,12 @@ async function handleChat(request, env) {
   const tools = buildTools(liveTools);
   const systemPrompt = buildSystemPrompt(companyName, liveTools);
 
-  const allMessages = [...messages];
+  // Keep only last 10 messages to stay within token limits
+  const trimmed = messages.slice(-10);
+  const allMessages = [...trimmed];
   let response;
 
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 4; i++) {
     const llmRes = await callLLM(env, {
       provider: "anthropic",
       model: "claude-sonnet-4-6",
@@ -265,7 +271,72 @@ async function handleChat(request, env) {
     allMessages.push({ role: "user", content: toolResults });
   }
 
-  return corsJson(response);
+  return corsJson({ ...response, _model: "claude-sonnet-4-6" });
+}
+
+// ─── /digest — AI-generated homescreen briefing ─────────────────────────────
+// Fetches data DIRECTLY from APIs first, then one lean LLM call (no tools).
+
+async function handleDigest(request, env) {
+  let body;
+  try { body = await request.json(); } catch { return jsonError("Invalid JSON", 400); }
+
+  const { connectedTools = [], companyName = "" } = body;
+  const liveTools = await resolveLiveTools(connectedTools, env);
+  if (!liveTools.length) return corsJson({ alerts: [], headline: "Connect your tools to see your daily digest." });
+
+  // Step 1: Fetch snapshots directly from each connected API (no AI involved)
+  const snapshots = {};
+  for (const tool of liveTools) {
+    try {
+      if (tool === "intercom") {
+        const data = await intercom(env, "POST", "conversations/search", {
+          query: { field: "state", operator: "=", value: "open" },
+          pagination: { per_page: 5 },
+        });
+        snapshots.intercom = JSON.stringify(data).slice(0, 2000);
+      } else if (tool === "stripe") {
+        const data = await stripe(env, "GET", "charges?limit=5");
+        snapshots.stripe = JSON.stringify(data).slice(0, 2000);
+      } else if (tool === "mailchimp") {
+        const data = await mailchimp(env, "GET", "campaigns?count=3&sort_field=send_time&sort_dir=DESC");
+        snapshots.mailchimp = JSON.stringify(data).slice(0, 2000);
+      }
+    } catch (e) {
+      snapshots[tool] = `Error fetching: ${e.message}`;
+    }
+  }
+
+  if (!Object.keys(snapshots).length) {
+    return corsJson({ alerts: [], headline: "No data available right now." });
+  }
+
+  // Step 2: One LLM call with the raw data — NO tools, no agentic loop
+  const dataStr = Object.entries(snapshots).map(([k, v]) => `[${k}]: ${v}`).join("\n\n");
+  const digestPrompt = `Data from ${companyName || "this company"}'s tools:\n\n${dataStr}\n\nReturn ONLY JSON (no markdown):\n{"headline":"one-line summary","alerts":[{"severity":"high|medium|low","title":"short title","body":"1-2 sentences with real numbers","sources":["toolname"],"actions":[{"label":"button text","prompt":"chat prompt"}]}]}\n1-3 alerts by severity.`;
+
+  const llmRes = await callLLM(env, {
+    provider: "anthropic",
+    model: "claude-sonnet-4-6",
+    system: "Concise business analyst. Return only valid JSON.",
+    messages: [{ role: "user", content: digestPrompt }],
+    tools: [],
+  });
+
+  if (!llmRes.ok) {
+    const err = await llmRes.text();
+    return jsonError(`LLM error: ${err}`, 502);
+  }
+
+  const response = await llmRes.json();
+  const text = response.content?.map(b => b.text || "").join("") || "";
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) return corsJson(JSON.parse(jsonMatch[0]));
+    return corsJson({ alerts: [], headline: "Couldn't parse digest. Try refreshing." });
+  } catch {
+    return corsJson({ alerts: [], headline: "Couldn't parse digest. Try refreshing." });
+  }
 }
 
 async function resolveLiveTools(requested, env) {
@@ -305,6 +376,13 @@ function callLLM(env, { provider, model, system, messages, tools }) {
 
 // ─── Tool Execution ──────────────────────────────────────────────────────────
 
+const MAX_TOOL_RESULT_CHARS = 3000;
+
+function truncateResult(str) {
+  if (str.length <= MAX_TOOL_RESULT_CHARS) return str;
+  return str.slice(0, MAX_TOOL_RESULT_CHARS) + "\n...[truncated — result too large]";
+}
+
 async function executeTools(contentBlocks, env) {
   const results = await Promise.all(
     contentBlocks
@@ -316,7 +394,7 @@ async function executeTools(contentBlocks, env) {
         } catch (err) {
           result = { error: err.message };
         }
-        return { type: "tool_result", tool_use_id: block.id, content: JSON.stringify(result) };
+        return { type: "tool_result", tool_use_id: block.id, content: truncateResult(JSON.stringify(result)) };
       })
   );
   return results;
@@ -325,18 +403,31 @@ async function executeTools(contentBlocks, env) {
 async function runTool(name, input, env) {
   switch (name) {
     // ── Intercom ───────────────────────────────────────────────────────────────
-    case "intercom_search_conversations":
+    case "intercom_search_conversations": {
+      const filters = [
+        ...(input.state ? [{ field: "state", operator: "=", value: input.state }] : []),
+        ...(input.query ? [{ field: "source.body", operator: "~", value: input.query }] : []),
+      ];
+      // If no filters, default to listing open conversations
+      if (!filters.length) filters.push({ field: "state", operator: "=", value: "open" });
       return intercom(env, "POST", "conversations/search", {
-        query: { operator: "AND", value: [...(input.state ? [{ field: "state", operator: "=", value: input.state }] : [])] },
+        query: filters.length === 1 ? filters[0] : { operator: "AND", value: filters },
         pagination: { per_page: input.limit ?? 20 },
       });
+    }
     case "intercom_get_conversation":
       return intercom(env, "GET", `conversations/${input.conversation_id}`);
-    case "intercom_search_contacts":
+    case "intercom_search_contacts": {
+      const cFilters = [
+        ...(input.email ? [{ field: "email", operator: "=", value: input.email }] : []),
+        ...(input.name ? [{ field: "name", operator: "~", value: input.name }] : []),
+      ];
+      if (!cFilters.length) cFilters.push({ field: "role", operator: "=", value: "user" });
       return intercom(env, "POST", "contacts/search", {
-        query: { operator: "AND", value: [...(input.email ? [{ field: "email", operator: "=", value: input.email }] : []), ...(input.name ? [{ field: "name", operator: "~", value: input.name }] : [])] },
+        query: cFilters.length === 1 ? cFilters[0] : { operator: "AND", value: cFilters },
         pagination: { per_page: input.limit ?? 10 },
       });
+    }
     case "intercom_get_contact":
       return intercom(env, "GET", `contacts/${input.contact_id}`);
     case "intercom_list_tags":
@@ -436,24 +527,24 @@ async function runTool(name, input, env) {
 
     // ── Database ───────────────────────────────────────────────────────────────
     case "db_list_tables": {
-      const conn = getDb(env);
+      const conn = await getDb(env);
       const rows = await conn.execute("SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name");
       return { tables: rows.rows };
     }
     case "db_describe_table": {
-      const conn = getDb(env);
+      const conn = await getDb(env);
       const rows = await conn.execute(`SELECT column_name, data_type, is_nullable, column_key, column_default, extra FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '${escapeSql(input.table_name)}' ORDER BY ordinal_position`);
       return { table: input.table_name, columns: rows.rows };
     }
     case "db_query": {
       const query = input.query.trim();
       if (!/^SELECT\s/i.test(query)) throw new Error("Only SELECT queries allowed via db_query.");
-      const conn = getDb(env);
+      const conn = await getDb(env);
       const result = await conn.execute(query);
       return { rows: result.rows, rowCount: result.rows.length };
     }
     case "db_insert": {
-      const conn = getDb(env);
+      const conn = await getDb(env);
       const cols = Object.keys(input.data);
       const vals = Object.values(input.data);
       const sql = `INSERT INTO ${escapeSql(input.table_name)} (${cols.map(escapeSql).join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`;
@@ -461,7 +552,7 @@ async function runTool(name, input, env) {
       return { ok: true, insertId: result.insertId, rowsAffected: result.rowsAffected };
     }
     case "db_update": {
-      const conn = getDb(env);
+      const conn = await getDb(env);
       const setClauses = Object.keys(input.data).map((k) => `${escapeSql(k)} = ?`).join(", ");
       const vals = [...Object.values(input.data), ...Object.values(input.where || {})];
       const whereClauses = Object.keys(input.where || {}).map((k) => `${escapeSql(k)} = ?`).join(" AND ");
@@ -470,7 +561,7 @@ async function runTool(name, input, env) {
       return { ok: true, rowsAffected: result.rowsAffected };
     }
     case "db_delete": {
-      const conn = getDb(env);
+      const conn = await getDb(env);
       const vals = Object.values(input.where || {});
       const whereClauses = Object.keys(input.where || {}).map((k) => `${escapeSql(k)} = ?`).join(" AND ");
       if (!whereClauses) throw new Error("WHERE clause required");
@@ -567,78 +658,65 @@ function buildTools(connectedTools) {
 
   if (connectedTools.includes("intercom")) {
     tools.push(
-      { name: "intercom_search_conversations", description: "Search conversations in Intercom. Filter by state (open/closed/snoozed).", input_schema: { type: "object", properties: { state: { type: "string", enum: ["open", "closed", "snoozed"] }, limit: { type: "number" } } } },
-      { name: "intercom_get_conversation", description: "Get full details and messages for a specific conversation.", input_schema: { type: "object", properties: { conversation_id: { type: "string" } }, required: ["conversation_id"] } },
-      { name: "intercom_search_contacts", description: "Search contacts by email or name.", input_schema: { type: "object", properties: { email: { type: "string" }, name: { type: "string" }, limit: { type: "number" } } } },
-      { name: "intercom_get_contact", description: "Get full contact details.", input_schema: { type: "object", properties: { contact_id: { type: "string" } }, required: ["contact_id"] } },
-      { name: "intercom_list_tags", description: "List all tags.", input_schema: { type: "object", properties: {} } },
-      { name: "intercom_list_teams", description: "List all teams.", input_schema: { type: "object", properties: {} } },
-      { name: "intercom_reply_conversation", description: "Send a reply to a conversation.", input_schema: { type: "object", properties: { conversation_id: { type: "string" }, admin_id: { type: "string" }, body: { type: "string" } }, required: ["conversation_id", "admin_id", "body"] } },
-      { name: "intercom_note_conversation", description: "Add an internal note (not visible to customer).", input_schema: { type: "object", properties: { conversation_id: { type: "string" }, admin_id: { type: "string" }, body: { type: "string" } }, required: ["conversation_id", "admin_id", "body"] } },
-      { name: "intercom_close_conversation", description: "Close a conversation.", input_schema: { type: "object", properties: { conversation_id: { type: "string" }, admin_id: { type: "string" }, body: { type: "string" } }, required: ["conversation_id", "admin_id"] } },
-      { name: "intercom_snooze_conversation", description: "Snooze a conversation until a specific time.", input_schema: { type: "object", properties: { conversation_id: { type: "string" }, admin_id: { type: "string" }, snoozed_until: { type: "number" } }, required: ["conversation_id", "admin_id", "snoozed_until"] } },
-      { name: "intercom_assign_conversation", description: "Assign a conversation to a team member.", input_schema: { type: "object", properties: { conversation_id: { type: "string" }, admin_id: { type: "string" }, assignee_id: { type: "string" }, body: { type: "string" } }, required: ["conversation_id", "admin_id", "assignee_id"] } },
-      { name: "intercom_tag_conversation", description: "Tag a conversation.", input_schema: { type: "object", properties: { conversation_id: { type: "string" }, tag_id: { type: "string" } }, required: ["conversation_id", "tag_id"] } },
-      { name: "intercom_create_contact", description: "Create a new contact.", input_schema: { type: "object", properties: { email: { type: "string" }, name: { type: "string" }, phone: { type: "string" }, role: { type: "string", enum: ["user", "lead"] }, custom_attributes: { type: "object" } }, required: ["email"] } },
-      { name: "intercom_update_contact", description: "Update an existing contact.", input_schema: { type: "object", properties: { contact_id: { type: "string" }, name: { type: "string" }, email: { type: "string" }, phone: { type: "string" }, custom_attributes: { type: "object" } }, required: ["contact_id"] } },
-      { name: "intercom_merge_contacts", description: "Merge two contacts. 'from' is merged into 'into'.", input_schema: { type: "object", properties: { from_contact_id: { type: "string" }, into_contact_id: { type: "string" } }, required: ["from_contact_id", "into_contact_id"] } },
+      { name: "intercom_search_conversations", description: "Search conversations. Filter by state.", input_schema: { type: "object", properties: { state: { type: "string", enum: ["open", "closed", "snoozed"] }, query: { type: "string" }, limit: { type: "number" } } } },
+      { name: "intercom_get_conversation", description: "Get conversation details.", input_schema: { type: "object", properties: { conversation_id: { type: "string" } }, required: ["conversation_id"] } },
+      { name: "intercom_search_contacts", description: "Search contacts.", input_schema: { type: "object", properties: { email: { type: "string" }, name: { type: "string" }, limit: { type: "number" } } } },
+      { name: "intercom_get_contact", description: "Get contact details.", input_schema: { type: "object", properties: { contact_id: { type: "string" } }, required: ["contact_id"] } },
+      { name: "intercom_list_tags", description: "List tags.", input_schema: { type: "object", properties: {} } },
+      { name: "intercom_reply_conversation", description: "Reply to a conversation.", input_schema: { type: "object", properties: { conversation_id: { type: "string" }, admin_id: { type: "string" }, body: { type: "string" } }, required: ["conversation_id", "admin_id", "body"] } },
+      { name: "intercom_note_conversation", description: "Add internal note.", input_schema: { type: "object", properties: { conversation_id: { type: "string" }, admin_id: { type: "string" }, body: { type: "string" } }, required: ["conversation_id", "admin_id", "body"] } },
+      { name: "intercom_close_conversation", description: "Close conversation.", input_schema: { type: "object", properties: { conversation_id: { type: "string" }, admin_id: { type: "string" } }, required: ["conversation_id", "admin_id"] } },
+      { name: "intercom_assign_conversation", description: "Assign conversation.", input_schema: { type: "object", properties: { conversation_id: { type: "string" }, admin_id: { type: "string" }, assignee_id: { type: "string" } }, required: ["conversation_id", "admin_id", "assignee_id"] } },
+      { name: "intercom_tag_conversation", description: "Tag conversation.", input_schema: { type: "object", properties: { conversation_id: { type: "string" }, tag_id: { type: "string" } }, required: ["conversation_id", "tag_id"] } },
+      { name: "intercom_create_contact", description: "Create contact.", input_schema: { type: "object", properties: { email: { type: "string" }, name: { type: "string" }, role: { type: "string", enum: ["user", "lead"] } }, required: ["email"] } },
+      { name: "intercom_update_contact", description: "Update contact.", input_schema: { type: "object", properties: { contact_id: { type: "string" }, name: { type: "string" }, email: { type: "string" } }, required: ["contact_id"] } },
     );
   }
 
   if (connectedTools.includes("stripe")) {
     tools.push(
-      { name: "stripe_list_customers", description: "List Stripe customers. Optionally filter by email.", input_schema: { type: "object", properties: { limit: { type: "number" }, email: { type: "string" } } } },
-      { name: "stripe_get_customer", description: "Get full details for a Stripe customer.", input_schema: { type: "object", properties: { customer_id: { type: "string" } }, required: ["customer_id"] } },
-      { name: "stripe_search_customers", description: "Search customers using Stripe's search query syntax.", input_schema: { type: "object", properties: { query: { type: "string", description: "Search query, e.g. email:'user@example.com' or name:'John'" } }, required: ["query"] } },
-      { name: "stripe_list_charges", description: "List recent charges. Optionally filter by customer.", input_schema: { type: "object", properties: { limit: { type: "number" }, customer: { type: "string" } } } },
-      { name: "stripe_list_subscriptions", description: "List subscriptions. Filter by status or customer.", input_schema: { type: "object", properties: { limit: { type: "number" }, status: { type: "string", enum: ["active", "past_due", "canceled", "unpaid", "trialing", "all"] }, customer: { type: "string" } } } },
-      { name: "stripe_get_subscription", description: "Get full subscription details.", input_schema: { type: "object", properties: { subscription_id: { type: "string" } }, required: ["subscription_id"] } },
-      { name: "stripe_list_invoices", description: "List invoices. Filter by customer or status.", input_schema: { type: "object", properties: { limit: { type: "number" }, customer: { type: "string" }, status: { type: "string", enum: ["draft", "open", "paid", "uncollectible", "void"] } } } },
-      { name: "stripe_get_balance", description: "Get current Stripe balance (available and pending funds).", input_schema: { type: "object", properties: {} } },
-      { name: "stripe_list_payment_intents", description: "List recent payment intents.", input_schema: { type: "object", properties: { limit: { type: "number" }, customer: { type: "string" } } } },
-      { name: "stripe_list_products", description: "List products in your Stripe catalog.", input_schema: { type: "object", properties: { limit: { type: "number" }, active: { type: "boolean" } } } },
-      { name: "stripe_list_prices", description: "List prices. Optionally filter by product.", input_schema: { type: "object", properties: { limit: { type: "number" }, product: { type: "string" } } } },
+      { name: "stripe_list_customers", description: "List customers.", input_schema: { type: "object", properties: { limit: { type: "number" }, email: { type: "string" } } } },
+      { name: "stripe_get_customer", description: "Get customer details.", input_schema: { type: "object", properties: { customer_id: { type: "string" } }, required: ["customer_id"] } },
+      { name: "stripe_search_customers", description: "Search customers.", input_schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
+      { name: "stripe_list_charges", description: "List charges.", input_schema: { type: "object", properties: { limit: { type: "number" }, customer: { type: "string" } } } },
+      { name: "stripe_list_subscriptions", description: "List subscriptions.", input_schema: { type: "object", properties: { limit: { type: "number" }, status: { type: "string" }, customer: { type: "string" } } } },
+      { name: "stripe_list_invoices", description: "List invoices.", input_schema: { type: "object", properties: { limit: { type: "number" }, customer: { type: "string" }, status: { type: "string" } } } },
+      { name: "stripe_get_balance", description: "Get balance.", input_schema: { type: "object", properties: {} } },
+      { name: "stripe_list_products", description: "List products.", input_schema: { type: "object", properties: { limit: { type: "number" } } } },
     );
   }
 
   if (connectedTools.includes("mailchimp")) {
     tools.push(
-      { name: "mailchimp_list_audiences", description: "List email audiences with subscriber counts.", input_schema: { type: "object", properties: { limit: { type: "number" } } } },
-      { name: "mailchimp_get_audience", description: "Get detailed audience info.", input_schema: { type: "object", properties: { list_id: { type: "string" } }, required: ["list_id"] } },
-      { name: "mailchimp_list_campaigns", description: "List email campaigns. Filter by status.", input_schema: { type: "object", properties: { limit: { type: "number" }, status: { type: "string", enum: ["save", "paused", "schedule", "sending", "sent"] } } } },
-      { name: "mailchimp_get_campaign", description: "Get campaign details.", input_schema: { type: "object", properties: { campaign_id: { type: "string" } }, required: ["campaign_id"] } },
-      { name: "mailchimp_get_campaign_report", description: "Get campaign performance — opens, clicks, bounces.", input_schema: { type: "object", properties: { campaign_id: { type: "string" } }, required: ["campaign_id"] } },
-      { name: "mailchimp_search_members", description: "Search subscribers by email or name.", input_schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
-      { name: "mailchimp_list_segments", description: "List segments for an audience.", input_schema: { type: "object", properties: { list_id: { type: "string" }, limit: { type: "number" } }, required: ["list_id"] } },
-      { name: "mailchimp_add_member", description: "Add a subscriber.", input_schema: { type: "object", properties: { list_id: { type: "string" }, email: { type: "string" }, status: { type: "string", enum: ["subscribed", "pending", "unsubscribed"] }, merge_fields: { type: "object" } }, required: ["list_id", "email"] } },
-      { name: "mailchimp_update_member", description: "Update a subscriber.", input_schema: { type: "object", properties: { list_id: { type: "string" }, email: { type: "string" }, status: { type: "string" }, merge_fields: { type: "object" } }, required: ["list_id", "email"] } },
-      { name: "mailchimp_create_campaign", description: "Create a campaign draft.", input_schema: { type: "object", properties: { list_id: { type: "string" }, subject: { type: "string" }, from_name: { type: "string" }, reply_to: { type: "string" }, type: { type: "string" } }, required: ["list_id", "subject", "from_name", "reply_to"] } },
-      { name: "mailchimp_set_campaign_content", description: "Set campaign HTML content.", input_schema: { type: "object", properties: { campaign_id: { type: "string" }, html: { type: "string" } }, required: ["campaign_id", "html"] } },
-      { name: "mailchimp_send_campaign", description: "Send a campaign. Irreversible — only when user confirms.", input_schema: { type: "object", properties: { campaign_id: { type: "string" } }, required: ["campaign_id"] } },
-      { name: "mailchimp_create_segment", description: "Create a new segment.", input_schema: { type: "object", properties: { list_id: { type: "string" }, name: { type: "string" }, emails: { type: "array", items: { type: "string" } } }, required: ["list_id", "name"] } },
-      { name: "mailchimp_tag_member", description: "Add tags to a subscriber.", input_schema: { type: "object", properties: { list_id: { type: "string" }, email: { type: "string" }, tags: { type: "array", items: { type: "string" } } }, required: ["list_id", "email", "tags"] } },
+      { name: "mailchimp_list_audiences", description: "List audiences.", input_schema: { type: "object", properties: { limit: { type: "number" } } } },
+      { name: "mailchimp_list_campaigns", description: "List campaigns.", input_schema: { type: "object", properties: { limit: { type: "number" }, status: { type: "string" } } } },
+      { name: "mailchimp_get_campaign_report", description: "Get campaign stats.", input_schema: { type: "object", properties: { campaign_id: { type: "string" } }, required: ["campaign_id"] } },
+      { name: "mailchimp_search_members", description: "Search subscribers.", input_schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
+      { name: "mailchimp_add_member", description: "Add subscriber.", input_schema: { type: "object", properties: { list_id: { type: "string" }, email: { type: "string" }, status: { type: "string" } }, required: ["list_id", "email"] } },
+      { name: "mailchimp_update_member", description: "Update subscriber.", input_schema: { type: "object", properties: { list_id: { type: "string" }, email: { type: "string" }, status: { type: "string" }, merge_fields: { type: "object" } }, required: ["list_id", "email"] } },
+      { name: "mailchimp_create_campaign", description: "Create campaign draft.", input_schema: { type: "object", properties: { list_id: { type: "string" }, subject: { type: "string" }, from_name: { type: "string" }, reply_to: { type: "string" } }, required: ["list_id", "subject", "from_name", "reply_to"] } },
+      { name: "mailchimp_send_campaign", description: "Send campaign (confirm first).", input_schema: { type: "object", properties: { campaign_id: { type: "string" } }, required: ["campaign_id"] } },
+      { name: "mailchimp_tag_member", description: "Tag subscriber.", input_schema: { type: "object", properties: { list_id: { type: "string" }, email: { type: "string" }, tags: { type: "array", items: { type: "string" } } }, required: ["list_id", "email", "tags"] } },
     );
   }
 
   if (connectedTools.includes("slack")) {
     tools.push(
-      { name: "slack_list_channels", description: "List Slack channels.", input_schema: { type: "object", properties: { limit: { type: "number" } } } },
-      { name: "slack_post_message", description: "Post a message to a Slack channel. Only when user explicitly asks.", input_schema: { type: "object", properties: { channel: { type: "string", description: "Channel ID or name" }, text: { type: "string" }, blocks: { type: "array", description: "Slack Block Kit blocks" } }, required: ["channel", "text"] } },
-      { name: "slack_list_messages", description: "Get recent messages from a channel.", input_schema: { type: "object", properties: { channel: { type: "string" }, limit: { type: "number" } }, required: ["channel"] } },
-      { name: "slack_search_messages", description: "Search messages across Slack.", input_schema: { type: "object", properties: { query: { type: "string" }, limit: { type: "number" } }, required: ["query"] } },
-      { name: "slack_get_user", description: "Get info about a Slack user.", input_schema: { type: "object", properties: { user_id: { type: "string" } }, required: ["user_id"] } },
-      { name: "slack_list_users", description: "List all Slack workspace members.", input_schema: { type: "object", properties: { limit: { type: "number" } } } },
+      { name: "slack_list_channels", description: "List channels.", input_schema: { type: "object", properties: { limit: { type: "number" } } } },
+      { name: "slack_post_message", description: "Post message (confirm first).", input_schema: { type: "object", properties: { channel: { type: "string" }, text: { type: "string" } }, required: ["channel", "text"] } },
+      { name: "slack_list_messages", description: "Read channel messages.", input_schema: { type: "object", properties: { channel: { type: "string" }, limit: { type: "number" } }, required: ["channel"] } },
+      { name: "slack_search_messages", description: "Search messages.", input_schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
     );
   }
 
   if (connectedTools.includes("database")) {
     tools.push(
-      { name: "db_list_tables", description: "List all tables in the database.", input_schema: { type: "object", properties: {} } },
-      { name: "db_describe_table", description: "Get column schema for a table.", input_schema: { type: "object", properties: { table_name: { type: "string" } }, required: ["table_name"] } },
-      { name: "db_query", description: "Execute a read-only SELECT query.", input_schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
-      { name: "db_insert", description: "Insert a row.", input_schema: { type: "object", properties: { table_name: { type: "string" }, data: { type: "object" } }, required: ["table_name", "data"] } },
-      { name: "db_update", description: "Update rows. Requires WHERE clause.", input_schema: { type: "object", properties: { table_name: { type: "string" }, data: { type: "object" }, where: { type: "object" } }, required: ["table_name", "data", "where"] } },
-      { name: "db_delete", description: "Delete rows. Requires WHERE clause. Only when user confirms.", input_schema: { type: "object", properties: { table_name: { type: "string" }, where: { type: "object" } }, required: ["table_name", "where"] } },
+      { name: "db_list_tables", description: "List tables.", input_schema: { type: "object", properties: {} } },
+      { name: "db_describe_table", description: "Get table schema.", input_schema: { type: "object", properties: { table_name: { type: "string" } }, required: ["table_name"] } },
+      { name: "db_query", description: "Run SELECT query.", input_schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
+      { name: "db_insert", description: "Insert row.", input_schema: { type: "object", properties: { table_name: { type: "string" }, data: { type: "object" } }, required: ["table_name", "data"] } },
+      { name: "db_update", description: "Update rows.", input_schema: { type: "object", properties: { table_name: { type: "string" }, data: { type: "object" }, where: { type: "object" } }, required: ["table_name", "data", "where"] } },
+      { name: "db_delete", description: "Delete rows (confirm first).", input_schema: { type: "object", properties: { table_name: { type: "string" }, where: { type: "object" } }, required: ["table_name", "where"] } },
     );
   }
 
@@ -648,29 +726,13 @@ function buildTools(connectedTools) {
 // ─── System Prompt ───────────────────────────────────────────────────────────
 
 function buildSystemPrompt(companyName, connectedTools) {
-  const toolList = connectedTools.join(", ") || "no tools connected";
-  return `You are Orchestra, an AI business copilot for ${companyName || "this company"}.
+  const toolList = connectedTools.join(", ") || "none";
+  return `You are Orchestra, an assistant for ${companyName || "this company"}. Connected: ${toolList}.
 
-You have access to real business data via tool calls. Always fetch real data — never make up numbers.
-
-Connected integrations: ${toolList}
-
-## How to use tools
-- Intercom: Search conversations for support health, get conversation details, search/manage contacts.
-- Stripe: List customers/charges/subscriptions/invoices, check balance, search customers. Read-only for now.
-- Mailchimp: List audiences/campaigns, get reports, search subscribers, create/send campaigns.
-- Slack: List channels/users, read messages, post messages (only when user asks).
-- Database: Use db_list_tables → db_describe_table → db_query to discover and query data.
-
-## Response format
-- Lead with the key insight or answer
-- Use **bold** for metrics and important values
-- End with 2-3 suggested next actions prefixed with → on their own lines
-- Be concise and actionable
-
-## Write actions
-- For destructive/high-impact actions, always confirm with the user first.
-- Read operations are always safe to execute without asking.`;
+Be concise and direct. Lead with the answer, not the process. Use **bold** for key numbers.
+Fetch real data via tools — never guess. Confirm before destructive actions (delete, send, cancel).
+For customer lookups, check all connected tools. For database, use db_list_tables first to discover schema.
+End with 1-2 actionable next steps using → prefix when relevant.`;
 }
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
@@ -680,8 +742,31 @@ function escapeSql(str) {
 }
 
 async function md5(str) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(str);
-  const hashBuffer = await crypto.subtle.digest("MD5", data);
-  return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  // Mailchimp requires MD5 of lowercase email for subscriber hash.
+  // CF Workers don't support crypto.subtle.digest("MD5"), so we use a simple JS implementation.
+  function md5impl(s) {
+    function L(k,d){return(k<<d)|(k>>>(32-d));}
+    function K(G,k){var I,d,F,H,x;F=(G&2147483648);H=(k&2147483648);I=(G&1073741824);d=(k&1073741824);x=(G&1073741823)+(k&1073741823);if(I&d)return(x^2147483648^F^H);if(I|d){if(x&1073741824)return(x^3221225472^F^H);else return(x^1073741824^F^H);}else return(x^F^H);}
+    function t(x,k,d){return(x&k)|((~x)&d);}
+    function q(x,k,d){return(x&d)|(k&(~d));}
+    function p(x,k,d){return(x^k^d);}
+    function n(x,k,d){return(k^(x|(~d)));}
+    function u(a,b,c,d,x,s,ac){a=K(a,K(K(t(b,c,d),x),ac));return K(L(a,s),b);}
+    function f(a,b,c,d,x,s,ac){a=K(a,K(K(q(b,c,d),x),ac));return K(L(a,s),b);}
+    function D(a,b,c,d,x,s,ac){a=K(a,K(K(p(b,c,d),x),ac));return K(L(a,s),b);}
+    function E(a,b,c,d,x,s,ac){a=K(a,K(K(n(b,c,d),x),ac));return K(L(a,s),b);}
+    function J(st){var r="",i,h;for(i=0;i<=3;i++){h=(st>>>(i*8))&255;r+="0123456789abcdef".charAt((h>>>4)&15)+"0123456789abcdef".charAt(h&15);}return r;}
+    var C=[],P,h,E2,v,g,Y,X,W,V,S=7,Q=12,N=17,M=22,A=5,z=9,y=14,w=20,o=4,m=11,l=16,j=23,e=6,B=10,g2=15,U=21;
+    var a8=s;var i;a8=a8.replace(/\r\n/g,"\n");var a7="";for(i=0;i<a8.length;i++){var a6=a8.charCodeAt(i);if(a6<128)a7+=String.fromCharCode(a6);else if(a6>127&&a6<2048){a7+=String.fromCharCode((a6>>6)|192);a7+=String.fromCharCode((a6&63)|128);}else{a7+=String.fromCharCode((a6>>12)|224);a7+=String.fromCharCode(((a6>>6)&63)|128);a7+=String.fromCharCode((a6&63)|128);}}
+    a8=a7;var a=a8.length;var R=a+8;var T=(R-(R%64))/64;var I=(T+1)*16;var Z=new Array(I-1);var d2=0;var c2=0;while(c2<a){var a0=(c2-(c2%4))/4;var a1=(c2%4)*8;Z[a0]=(Z[a0]|(a8.charCodeAt(c2)<<a1));c2++;}d2=(c2-(c2%4))/4;a1=(c2%4)*8;Z[d2]=Z[d2]|(128<<a1);Z[I-2]=a<<3;Z[I-1]=a>>>29;
+    var a2=1732584193,b2=4023233417,c3=2562383102,d3=271733878;
+    for(var k=0;k<I;k+=16){var AA=a2,BB=b2,CC=c3,DD=d3;
+    a2=u(a2,b2,c3,d3,Z[k+0],S,3614090360);d3=u(d3,a2,b2,c3,Z[k+1],Q,3905402710);c3=u(c3,d3,a2,b2,Z[k+2],N,606105819);b2=u(b2,c3,d3,a2,Z[k+3],M,3250441966);a2=u(a2,b2,c3,d3,Z[k+4],S,4118548399);d3=u(d3,a2,b2,c3,Z[k+5],Q,1200080426);c3=u(c3,d3,a2,b2,Z[k+6],N,2821735955);b2=u(b2,c3,d3,a2,Z[k+7],M,4249261313);a2=u(a2,b2,c3,d3,Z[k+8],S,1770035416);d3=u(d3,a2,b2,c3,Z[k+9],Q,2336552879);c3=u(c3,d3,a2,b2,Z[k+10],N,4294925233);b2=u(b2,c3,d3,a2,Z[k+11],M,2304563134);a2=u(a2,b2,c3,d3,Z[k+12],S,1804603682);d3=u(d3,a2,b2,c3,Z[k+13],Q,4254626195);c3=u(c3,d3,a2,b2,Z[k+14],N,2792965006);b2=u(b2,c3,d3,a2,Z[k+15],M,1236535329);
+    a2=f(a2,b2,c3,d3,Z[k+1],A,4129170786);d3=f(d3,a2,b2,c3,Z[k+6],z,3225465664);c3=f(c3,d3,a2,b2,Z[k+11],y,643717713);b2=f(b2,c3,d3,a2,Z[k+0],w,3921069994);a2=f(a2,b2,c3,d3,Z[k+5],A,3593408605);d3=f(d3,a2,b2,c3,Z[k+10],z,38016083);c3=f(c3,d3,a2,b2,Z[k+15],y,3634488961);b2=f(b2,c3,d3,a2,Z[k+4],w,3889429448);a2=f(a2,b2,c3,d3,Z[k+9],A,568446438);d3=f(d3,a2,b2,c3,Z[k+14],z,3275163606);c3=f(c3,d3,a2,b2,Z[k+3],y,4107603335);b2=f(b2,c3,d3,a2,Z[k+8],w,1163531501);a2=f(a2,b2,c3,d3,Z[k+13],A,2850285829);d3=f(d3,a2,b2,c3,Z[k+2],z,4243563512);c3=f(c3,d3,a2,b2,Z[k+7],y,1735328473);b2=f(b2,c3,d3,a2,Z[k+12],w,2368359562);
+    a2=D(a2,b2,c3,d3,Z[k+5],o,4294588738);d3=D(d3,a2,b2,c3,Z[k+8],m,2272392833);c3=D(c3,d3,a2,b2,Z[k+11],l,1839030562);b2=D(b2,c3,d3,a2,Z[k+14],j,4259657740);a2=D(a2,b2,c3,d3,Z[k+1],o,2763975236);d3=D(d3,a2,b2,c3,Z[k+4],m,1272893353);c3=D(c3,d3,a2,b2,Z[k+7],l,4139469664);b2=D(b2,c3,d3,a2,Z[k+10],j,3200236656);a2=D(a2,b2,c3,d3,Z[k+13],o,681279174);d3=D(d3,a2,b2,c3,Z[k+0],m,3936430074);c3=D(c3,d3,a2,b2,Z[k+3],l,3572445317);b2=D(b2,c3,d3,a2,Z[k+6],j,76029189);a2=D(a2,b2,c3,d3,Z[k+9],o,3654602809);d3=D(d3,a2,b2,c3,Z[k+12],m,3873151461);c3=D(c3,d3,a2,b2,Z[k+15],l,530742520);b2=D(b2,c3,d3,a2,Z[k+2],j,3299628645);
+    a2=E(a2,b2,c3,d3,Z[k+0],e,4096336452);d3=E(d3,a2,b2,c3,Z[k+7],B,1126891415);c3=E(c3,d3,a2,b2,Z[k+14],g2,2878612391);b2=E(b2,c3,d3,a2,Z[k+5],U,4237533241);a2=E(a2,b2,c3,d3,Z[k+12],e,1700485571);d3=E(d3,a2,b2,c3,Z[k+3],B,2399980690);c3=E(c3,d3,a2,b2,Z[k+10],g2,4293915773);b2=E(b2,c3,d3,a2,Z[k+1],U,2240044497);a2=E(a2,b2,c3,d3,Z[k+8],e,1873313359);d3=E(d3,a2,b2,c3,Z[k+15],B,4264355552);c3=E(c3,d3,a2,b2,Z[k+6],g2,2734768916);b2=E(b2,c3,d3,a2,Z[k+13],U,1309151649);a2=E(a2,b2,c3,d3,Z[k+4],e,4149444226);d3=E(d3,a2,b2,c3,Z[k+11],B,3174756917);c3=E(c3,d3,a2,b2,Z[k+2],g2,718787259);b2=E(b2,c3,d3,a2,Z[k+9],U,3951481745);
+    a2=K(a2,AA);b2=K(b2,BB);c3=K(c3,CC);d3=K(d3,DD);}
+    return(J(a2)+J(b2)+J(c3)+J(d3)).toLowerCase();
+  }
+  return md5impl(str);
 }

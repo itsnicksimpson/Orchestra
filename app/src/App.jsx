@@ -7,19 +7,19 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 const WORKER_URL = import.meta.env.VITE_WORKER_URL || "http://localhost:8787";
 
-/* ── SVG Logos ─────────────────────────── */
+/* ── SVG Logos (Simple Icons — https://simpleicons.org) ─── */
 const IntercomLogo = ({ size = 20 }) => (
-  <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-    <rect width="32" height="32" rx="7" fill="#286EFA" />
-    <path d="M10 12v6M13 10v10M16 9v12M19 10v10M22 12v6" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
-    <path d="M9 22s3 2 7 2 7-2 7-2" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+  <svg width={size} height={size} viewBox="0 0 24 24">
+    <path d="M21 0H3C1.343 0 0 1.343 0 3v18c0 1.658 1.343 3 3 3h18c1.658 0 3-1.342 3-3V3c0-1.657-1.342-3-3-3zm-5.801 4.399c0-.44.36-.8.802-.8.44 0 .8.36.8.8v10.688c0 .442-.36.801-.8.801-.443 0-.802-.359-.802-.801V4.399zM11.2 3.994c0-.44.357-.799.8-.799s.8.359.8.799v11.602c0 .44-.357.8-.8.8s-.8-.36-.8-.8V3.994zm-4 .405c0-.44.359-.8.799-.8.443 0 .802.36.802.8v10.688c0 .442-.36.801-.802.801-.44 0-.799-.359-.799-.801V4.399zM3.199 6c0-.442.36-.8.802-.8.44 0 .799.358.799.8v7.195c0 .441-.359.8-.799.8-.443 0-.802-.36-.802-.8V6zM20.52 18.202c-.123.105-3.086 2.593-8.52 2.593-5.433 0-8.397-2.486-8.521-2.593-.335-.288-.375-.792-.086-1.128.285-.334.79-.375 1.125-.09.047.041 2.693 2.211 7.481 2.211 4.848 0 7.456-2.186 7.479-2.207.334-.289.839-.25 1.128.086.289.336.25.84-.086 1.128zm.281-5.007c0 .441-.36.8-.801.8-.441 0-.801-.36-.801-.8V6c0-.442.361-.8.801-.8.441 0 .801.357.801.8v7.195z" fill="#286EFA"/>
   </svg>
 );
 
 const MailchimpLogo = ({ size = 20 }) => (
   <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
     <rect width="32" height="32" rx="7" fill="#FFE01B" />
-    <text x="16" y="22" textAnchor="middle" fontSize="16" fontWeight="700" fill="#241C15">M</text>
+    <svg x="4" y="4" width="24" height="24" viewBox="0 0 24 24">
+      <path d="M11.267 0C6.791-.015-1.82 10.246 1.397 12.964l.79.669a3.88 3.88 0 0 0-.22 1.792c.084.84.518 1.644 1.22 2.266.666.59 1.542.964 2.392.964 1.406 3.24 4.62 5.228 8.386 5.34 4.04.12 7.433-1.776 8.854-5.182.093-.24.488-1.316.488-2.267 0-.956-.54-1.352-.885-1.352-.01-.037-.078-.286-.172-.586-.093-.3-.19-.51-.19-.51.375-.563.382-1.065.332-1.35-.053-.353-.2-.653-.496-.964-.296-.311-.902-.63-1.753-.868l-.446-.124c-.002-.019-.024-1.053-.043-1.497-.014-.32-.042-.822-.197-1.315-.186-.668-.508-1.253-.911-1.627 1.112-1.152 1.806-2.422 1.804-3.511-.003-2.095-2.576-2.729-5.746-1.416l-.672.285A678.22 678.22 0 0 0 12.7.504C12.304.159 11.817.002 11.267 0zm.073.873c.166 0 .322.019.465.058.297.084 1.28 1.224 1.28 1.224s-1.826 1.013-3.52 2.426c-2.28 1.757-4.005 4.311-5.037 7.082-.811.158-1.526.618-1.963 1.253-.261-.218-.748-.64-.834-.804-.698-1.326.761-3.902 1.781-5.357C5.834 3.44 9.37.867 11.34.873zm3.286 3.273c.04-.002.06.05.028.074-.143.11-.299.26-.413.414a.04.04 0 0 0 .031.064c.659.004 1.587.235 2.192.574.041.023.012.103-.034.092-.915-.21-2.414-.369-3.97.01-1.39.34-2.45.863-3.224 1.426-.04.028-.086-.023-.055-.06.896-1.035 1.999-1.935 2.987-2.44.034-.018.07.019.052.052-.079.143-.23.447-.278.678-.007.035.032.063.062.042.615-.42 1.684-.868 2.622-.926zm3.023 3.205l.056.001a.896.896 0 0 1 .456.146c.534.355.61 1.216.638 1.845.015.36.059 1.229.074 1.478.034.571.184.651.487.751.17.057.33.098.563.164.706.198 1.125.4 1.39.658.157.162.23.333.253.497.083.608-.472 1.36-1.942 2.041-1.607.746-3.557.935-4.904.785l-.471-.053c-1.078-.145-1.693 1.247-1.046 2.201.417.615 1.552 1.015 2.688 1.015 2.604 0 4.605-1.111 5.35-2.072a.987.987 0 0 0 .06-.085c.036-.055.006-.085-.04-.054-.608.416-3.31 2.069-6.2 1.571 0 0-.351-.057-.672-.182-.255-.1-.788-.344-.853-.891 2.333.72 3.801.039 3.801.039a.072.072 0 0 0 .042-.072.067.067 0 0 0-.074-.06s-1.911.283-3.718-.378c.197-.64.72-.408 1.51-.345a11.045 11.045 0 0 0 3.647-.394c.818-.234 1.892-.697 2.727-1.356.281.618.38 1.299.38 1.299s.219-.04.4.073c.173.106.299.326.213.895-.176 1.063-.628 1.926-1.387 2.72a5.714 5.714 0 0 1-1.666 1.244c-.34.18-.704.334-1.087.46-2.863.935-5.794-.093-6.739-2.3a3.545 3.545 0 0 1-.189-.522c-.403-1.455-.06-3.2 1.008-4.299.065-.07.132-.153.132-.256 0-.087-.055-.179-.102-.243-.374-.543-1.669-1.466-1.409-3.254.187-1.284 1.31-2.189 2.357-2.135.089.004.177.01.266.015.453.027.85.085 1.223.1.625.028 1.187-.063 1.853-.618.225-.187.405-.35.71-.401.028-.005.092-.028.215-.028zm.022 2.18a.42.42 0 0 0-.06.005c-.335.054-.347.468-.228 1.04.068.32.187.595.32.765.175-.02.343-.022.498 0 .089-.205.104-.557.024-.942-.112-.535-.261-.872-.554-.868zm-3.66 1.546a1.724 1.724 0 0 0-1.016.326c-.16.117-.311.28-.29.378.008.032.031.056.088.063.131.015.592-.217 1.122-.25.374-.023.684.094.923.2.239.104.386.173.443.113.037-.038.026-.11-.031-.204-.118-.192-.36-.387-.618-.497a1.601 1.601 0 0 0-.621-.129zm4.082.81c-.171-.003-.313.186-.317.42-.004.236.131.43.303.432.172.003.314-.185.318-.42.004-.236-.132-.429-.304-.432zm-3.58.172c-.05 0-.102.002-.155.008-.311.05-.483.152-.593.247-.094.082-.152.173-.152.237a.075.075 0 0 0 .075.076c.07 0 .228-.063.228-.063a1.98 1.98 0 0 1 1.001-.104c.157.018.23.027.265-.026.01-.016.022-.049-.01-.1-.063-.103-.311-.269-.66-.275zm2.26.4c-.127 0-.235.051-.283.148-.075.154.035.363.246.466.21.104.443.063.52-.09.075-.155-.035-.364-.246-.467a.542.542 0 0 0-.237-.058zm-11.635.024c.048 0 .098 0 .149.003.73.04 1.806.6 2.052 2.19.217 1.41-.128 2.843-1.449 3.069-.123.02-.248.029-.374.026-1.22-.033-2.539-1.132-2.67-2.435-.145-1.44.591-2.548 1.894-2.811.117-.024.252-.04.398-.042zm-.07.927a1.144 1.144 0 0 0-.847.364c-.38.418-.439.988-.366 1.19.027.073.07.094.1.098.064.008.16-.039.22-.2a1.2 1.2 0 0 0 .017-.052 1.58 1.58 0 0 1 .157-.37.689.689 0 0 1 .955-.199c.266.174.369.5.255.81-.058.161-.154.469-.133.721.043.511.357.717.64.738.274.01.466-.143.515-.256.029-.067.005-.107-.011-.125-.043-.053-.113-.037-.18-.021a.638.638 0 0 1-.16.022.347.347 0 0 1-.294-.148c-.078-.12-.073-.3.013-.504.011-.028.025-.058.04-.092.138-.308.368-.825.11-1.317-.195-.37-.513-.602-.894-.65a1.135 1.135 0 0 0-.138-.01z" fill="#241C15"/>
+    </svg>
   </svg>
 );
 
@@ -35,21 +35,23 @@ const DatabaseLogo = ({ size = 20 }) => (
 const StripeLogo = ({ size = 20 }) => (
   <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
     <rect width="32" height="32" rx="7" fill="#635BFF" />
-    <path d="M15.2 12.8c0-.84.7-1.2 1.8-1.2 1.6 0 3.6.5 5.2 1.4V8.2C20.6 7.6 19 7.2 17.4 7.2c-3.8 0-6.4 2-6.4 5.4 0 5.2 7.2 4.4 7.2 6.6 0 1-.8 1.3-2 1.3-1.7 0-3.9-.7-5.6-1.7v4.8c1.9.8 3.8 1.2 5.6 1.2 3.9 0 6.6-1.9 6.6-5.4 0-5.6-7.2-4.6-7.2-6.6h-.4z" fill="#fff" />
+    <svg x="4" y="4" width="24" height="24" viewBox="0 0 24 24">
+      <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.594-7.305h.003z" fill="#fff"/>
+    </svg>
   </svg>
 );
 
 const SlackLogo = ({ size = 20 }) => (
   <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
     <rect width="32" height="32" rx="7" fill="#4A154B" />
-    <path d="M11 18.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm1 0a1.5 1.5 0 013 0v4a1.5 1.5 0 01-3 0v-4z" fill="#E01E5A" />
-    <path d="M13.5 11a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 1a1.5 1.5 0 100 3h4a1.5 1.5 0 100-3h-4z" fill="#36C5F0" />
-    <path d="M21 13.5a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zm-1 0a1.5 1.5 0 10-3 0v4a1.5 1.5 0 103 0v-4z" fill="#2EB67D" />
-    <path d="M18.5 21a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm0-1a1.5 1.5 0 100-3h-4a1.5 1.5 0 100 3h4z" fill="#ECB22E" />
+    <svg x="4" y="4" width="24" height="24" viewBox="0 0 24 24">
+      <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" fill="#fff"/>
+    </svg>
   </svg>
 );
 
 /* ── Sidebar Icons ───────────────────── */
+const IconDigest = () => <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.4"/><path d="M5 5.5h6M5 8h4M5 10.5h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>;
 const IconChat = () => <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 3.5A1.5 1.5 0 013.5 2h9A1.5 1.5 0 0114 3.5v7a1.5 1.5 0 01-1.5 1.5H5l-3 2v-2H3.5A1.5 1.5 0 012 10.5v-7z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/></svg>;
 const IconAgent = () => <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4"/><path d="M8 4v4l2.5 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>;
 const IconIntegration = () => <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 2v4H2M10 14v-4h4M2 6l4-4M14 10l-4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 2v4h4M6 14v-4H2M14 6l-4-4M2 10l4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>;
@@ -208,24 +210,48 @@ function StatusDot({ active, size = 6 }) {
 }
 
 /* ── Thinking / Steps Component ────────── */
-function ThinkingSteps({ steps, done }) {
+function ThinkingSteps({ steps, done, tools }) {
+  // Compact mode: just show tool circles in a row with a one-liner
+  const toolSteps = steps.filter(s => s.tool);
+  const uniqueTools = [...new Set(toolSteps.map(s => s.tool))];
+
+  if (done) {
+    // Completed: show as a single compact row of tool circles + summary
+    if (!uniqueTools.length) return null;
+    return (
+      <div className="steps-compact">
+        <div className="steps-circles">
+          {uniqueTools.map(t => {
+            const tool = INTEGRATIONS_DATA.find(i => i.id === t);
+            if (!tool) return null;
+            return <div key={t} className="step-circle" title={tool.name}><tool.Logo size={16} /></div>;
+          })}
+        </div>
+        <span className="steps-summary">Searched {uniqueTools.map(t => INTEGRATIONS_DATA.find(i => i.id === t)?.name).filter(Boolean).join(", ")}</span>
+      </div>
+    );
+  }
+
+  // Streaming: show active state with spinner
+  const lastStep = steps[steps.length - 1];
+  const completedTools = uniqueTools.slice(0, -1);
+  const activeToolId = lastStep?.tool;
+  const activeTool = activeToolId ? INTEGRATIONS_DATA.find(i => i.id === activeToolId) : null;
+
   return (
-    <div className="steps-wrap">
-      {steps.map((s, i) => {
-        const isLast = i === steps.length - 1;
-        const isActive = isLast && !done;
-        return (
-          <div key={i} className="step-row">
-            <div className={`step-dot ${isActive ? "step-dot-active" : "step-dot-done"}`}>
-              {isActive ? <span className="step-spinner" /> : "✓"}
-            </div>
-            <div className="step-text">
-              <span className="step-label">{s.label}</span>
-              {s.tool && <ToolPill id={s.tool} small />}
-            </div>
-          </div>
-        );
-      })}
+    <div className="steps-compact">
+      <div className="steps-circles">
+        {completedTools.map(t => {
+          const tool = INTEGRATIONS_DATA.find(i => i.id === t);
+          if (!tool) return null;
+          return <div key={t} className="step-circle step-circle-done" title={tool.name}><tool.Logo size={16} /></div>;
+        })}
+        {activeTool && (
+          <div className="step-circle step-circle-active" title={activeTool.name}><activeTool.Logo size={16} /></div>
+        )}
+        {!activeToolId && <div className="step-circle step-circle-active"><span className="step-spinner" /></div>}
+      </div>
+      <span className="steps-summary steps-summary-active">{lastStep?.label || "Thinking…"}</span>
     </div>
   );
 }
@@ -350,6 +376,7 @@ function useIntegrationStatus() {
 /* ═══════════ SIDEBAR ═══════════ */
 function Sidebar({ tab, setTab, connected, companyName, collapsed, setCollapsed }) {
   const navItems = [
+    { id: "digest", label: "Digest", icon: IconDigest, section: "workspace" },
     { id: "chat", label: "Chat", icon: IconChat, section: "workspace" },
     { id: "agents", label: "Agents", icon: IconAgent, section: "workspace" },
     { id: "integrations", label: "Integrations", icon: IconIntegration, section: "workspace" },
@@ -1008,14 +1035,125 @@ function SettingsTab({ companyName }) {
   );
 }
 
+/* ═══════════ DIGEST TAB ═══════════ */
+function DigestTab({ connected, companyName, onAction }) {
+  const [digest, setDigest] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchDigest = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${WORKER_URL}/digest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connectedTools: connected, companyName }),
+      });
+      const data = await res.json();
+      if (data.error) { setError(data.error); } else { setDigest(data); }
+    } catch (err) { setError(err.message); }
+    setLoading(false);
+  }, [connected, companyName]);
+
+  useEffect(() => { if (connected.length > 0) fetchDigest(); else setLoading(false); }, []);
+
+  const severityColor = { high: "#EF4444", medium: "#F59E0B", low: "#6366F1" };
+  const severityBg = { high: "rgba(239,68,68,0.06)", medium: "rgba(245,158,11,0.06)", low: "rgba(99,102,241,0.04)" };
+  const severityLabel = { high: "Urgent", medium: "Heads up", low: "FYI" };
+
+  if (!connected.length) {
+    return (
+      <div className="main-content fade-in">
+        <div className="content-header"><div><h1 className="page-title">Digest</h1><p className="page-subtitle">Connect your tools to see your daily briefing.</p></div></div>
+        <div className="empty-state" style={{ padding: "60px 20px", textAlign: "center" }}>
+          <p style={{ color: "var(--text-tertiary)", fontSize: 14 }}>No tools connected yet. Head to Integrations to get started.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="main-content fade-in">
+      <div className="content-header">
+        <div>
+          <h1 className="page-title">Digest</h1>
+          <p className="page-subtitle">{digest?.headline || "Loading your daily briefing…"}</p>
+        </div>
+        <button onClick={fetchDigest} className="btn-secondary" disabled={loading} style={{ opacity: loading ? 0.5 : 1 }}>
+          {loading ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+
+      {loading && (
+        <div style={{ padding: "40px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+          <div className="digest-loader" />
+          <span style={{ fontSize: 13, color: "var(--text-tertiary)" }}>Pulling data from {connected.map(id => INTEGRATIONS_DATA.find(i => i.id === id)?.name).filter(Boolean).join(", ")}…</span>
+        </div>
+      )}
+
+      {error && (
+        <div style={{ padding: 20 }}>
+          <div style={{ padding: "14px 18px", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)", borderRadius: 10, color: "#EF4444", fontSize: 13 }}>
+            {error}
+          </div>
+        </div>
+      )}
+
+      {!loading && digest?.alerts?.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "0 20px 20px" }}>
+          {digest.alerts.map((alert, i) => (
+            <div key={i} className="digest-card" style={{ borderLeft: `3px solid ${severityColor[alert.severity] || severityColor.low}`, background: severityBg[alert.severity] || severityBg.low }}>
+              <div className="digest-card-header">
+                <span className="digest-severity" style={{ color: severityColor[alert.severity] }}>{severityLabel[alert.severity] || "Info"}</span>
+                <div className="digest-sources">
+                  {(alert.sources || []).map(s => {
+                    const tool = INTEGRATIONS_DATA.find(t => t.id === s);
+                    return tool ? <div key={s} className="digest-source-circle" title={tool.name}><tool.Logo size={14} /></div> : null;
+                  })}
+                </div>
+              </div>
+              <div className="digest-card-title">{alert.title}</div>
+              <div className="digest-card-body">{alert.body}</div>
+              {alert.actions?.length > 0 && (
+                <div className="digest-actions">
+                  {alert.actions.map((a, ai) => (
+                    <button key={ai} className="digest-action-btn" onClick={() => onAction(a.prompt)}>
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && digest && (!digest.alerts || digest.alerts.length === 0) && !error && (
+        <div className="empty-state" style={{ padding: "60px 20px", textAlign: "center" }}>
+          <p style={{ fontSize: 14, color: "var(--text-tertiary)" }}>All clear — nothing urgent right now.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ═══════════ CHAT TAB ═══════════ */
-function ChatTab({ connected, companyName }) {
+function ChatTab({ connected, companyName, initialPrompt, onPromptConsumed }) {
   const { messages, streaming, send, steps } = useChat(connected, companyName);
   const [input, setInput] = useState("");
   const [completedActions, setCompletedActions] = useState({});
   const endRef = useRef(null);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, streaming, steps]);
+
+  // Handle initialPrompt from Digest action buttons
+  useEffect(() => {
+    if (initialPrompt && !streaming) {
+      send(initialPrompt);
+      onPromptConsumed?.();
+    }
+  }, [initialPrompt]);
 
   const submit = () => { if (input.trim() && !streaming) { send(input.trim()); setInput(""); } };
 
@@ -1056,12 +1194,7 @@ function ChatTab({ connected, companyName }) {
               <div className="bubble-user">{m.content}</div>
             ) : (
               <div className="response-block fade-in">
-                {m.steps?.length > 0 && <ThinkingSteps steps={m.steps} done={true} />}
-                {m.tools?.length > 0 && (
-                  <div style={{ display: "flex", gap: 5, marginBottom: 12 }}>
-                    {m.tools.map(t => <ToolPill key={t} id={t} small />)}
-                  </div>
-                )}
+                {m.steps?.length > 0 && <ThinkingSteps steps={m.steps} done={true} tools={m.tools} />}
                 <div className="response-body">
                   {m.content.split(/(\*\*.*?\*\*)/g).map((p, j) =>
                     p.startsWith("**") && p.endsWith("**")
@@ -1101,9 +1234,11 @@ function ChatTab({ connected, companyName }) {
           <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} placeholder="Describe what you need…" className="text-input" disabled={streaming} />
           <button onClick={submit} className="send-btn" style={{ opacity: input.trim() && !streaming ? 1 : 0.1 }}>↑</button>
         </div>
-        <p className="input-hint">
-          {connected.map(id => INTEGRATIONS_DATA.find(i => i.id === id)?.name).filter(Boolean).join(" · ")} connected — destructive actions require approval
-        </p>
+        <div className="input-hint" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <span className="model-pill">Claude Sonnet 4</span>
+          <span>·</span>
+          <span>{connected.map(id => INTEGRATIONS_DATA.find(i => i.id === id)?.name).filter(Boolean).join(", ")}</span>
+        </div>
       </div>
     </div>
   );
@@ -1111,7 +1246,8 @@ function ChatTab({ connected, companyName }) {
 
 /* ═══════════ MAIN APP ═══════════ */
 function MainApp({ initialConnected, companyName }) {
-  const [tab, setTab] = useState("chat");
+  const [tab, setTab] = useState("digest");
+  const [pendingChatPrompt, setPendingChatPrompt] = useState(null);
   const [connected, setConnected] = useState(initialConnected);
   const [agents, setAgents] = useState(DEFAULT_AGENTS);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -1141,7 +1277,8 @@ function MainApp({ initialConnected, companyName }) {
           setCollapsed={setSidebarCollapsed}
         />
         <main className={`app-main ${mobileMenuOpen ? "app-main-blur" : ""}`}>
-          {tab === "chat" && <ChatTab connected={connected} companyName={companyName} />}
+          {tab === "digest" && <DigestTab connected={connected} companyName={companyName} onAction={(prompt) => { setPendingChatPrompt(prompt); setTab("chat"); }} />}
+          {tab === "chat" && <ChatTab connected={connected} companyName={companyName} initialPrompt={pendingChatPrompt} onPromptConsumed={() => setPendingChatPrompt(null)} />}
           {tab === "agents" && <AgentsTab connected={connected} agents={agents} setAgents={setAgents} />}
           {tab === "integrations" && <IntegrationsTab connected={connected} setConnected={setConnected} />}
           {tab === "settings" && <SettingsTab companyName={companyName} />}
@@ -1355,9 +1492,27 @@ function LandingPage({ onGetStarted }) {
 
 /* ═══════════ ROOT ═══════════ */
 export default function App() {
-  const [view, setView] = useState("landing"); // landing | onboarding | app
-  const [connected, setConnected] = useState([]);
-  const [companyName, setCompanyName] = useState("");
+  const [view, setView] = useState(() => localStorage.getItem("orch_view") || "landing");
+  const [connected, setConnected] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("orch_connected") || "[]"); } catch { return []; }
+  });
+  const [companyName, setCompanyName] = useState(() => localStorage.getItem("orch_company") || "");
+
+  // Persist state changes to localStorage
+  useEffect(() => { localStorage.setItem("orch_view", view); }, [view]);
+  useEffect(() => { localStorage.setItem("orch_connected", JSON.stringify(connected)); }, [connected]);
+  useEffect(() => { localStorage.setItem("orch_company", companyName); }, [companyName]);
+
+  // On app load, sync connected tools from the worker (source of truth)
+  useEffect(() => {
+    if (view !== "app") return;
+    fetch(`${WORKER_URL}/integrations`).then(r => r.json()).then(data => {
+      if (data && typeof data === "object" && !data.error) {
+        const live = Object.entries(data).filter(([, v]) => v).map(([k]) => k);
+        if (live.length > 0) setConnected(live);
+      }
+    }).catch(() => {});
+  }, [view]);
 
   return (
     <>
@@ -1953,14 +2108,34 @@ const GLOBAL_CSS = `
   .response-body { font-size: 14px; line-height: 1.75; color: var(--text-secondary); white-space: pre-wrap; }
 
   /* Steps */
-  .steps-wrap { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border-light); }
-  .step-row { display: flex; align-items: center; gap: 10px; }
-  .step-dot { width: 20px; height: 20px; border-radius: 99px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
-  .step-dot-done { background: #f0fdf4; color: var(--success); }
-  .step-dot-active { background: var(--bg-page); color: transparent; position: relative; }
+  .steps-compact { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border-light); }
+  .steps-circles { display: flex; align-items: center; gap: -4px; }
+  .step-circle { width: 28px; height: 28px; border-radius: 99px; display: flex; align-items: center; justify-content: center; background: var(--bg-page); border: 2px solid var(--bg-card); margin-left: -6px; position: relative; flex-shrink: 0; overflow: hidden; }
+  .step-circle:first-child { margin-left: 0; }
+  .step-circle-done { opacity: 1; }
+  .step-circle-active { box-shadow: 0 0 0 2px rgba(99,102,241,0.25); }
+  .steps-summary { font-size: 12px; color: var(--text-tertiary); font-weight: 450; }
+  .steps-summary-active { color: var(--text-secondary); }
   .step-spinner { width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--text-secondary); border-radius: 99px; animation: spin 0.8s linear infinite; display: block; }
-  .step-text { display: flex; align-items: center; gap: 8px; }
-  .step-label { font-size: 13px; color: var(--text-tertiary); font-weight: 450; }
+
+  /* Digest */
+  .digest-card { padding: 18px 20px; border-radius: var(--radius); transition: all 0.15s; }
+  .digest-card:hover { filter: brightness(0.98); }
+  .digest-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .digest-severity { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
+  .digest-sources { display: flex; align-items: center; }
+  .digest-source-circle { width: 24px; height: 24px; border-radius: 99px; display: flex; align-items: center; justify-content: center; background: var(--bg-card); border: 2px solid rgba(255,255,255,0.8); margin-left: -6px; flex-shrink: 0; overflow: hidden; }
+  .digest-source-circle:first-child { margin-left: 0; }
+  .digest-card-title { font-size: 15px; font-weight: 650; color: var(--text-primary); margin-bottom: 6px; line-height: 1.4; }
+  .digest-card-body { font-size: 13.5px; color: var(--text-secondary); line-height: 1.6; }
+  .digest-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .digest-action-btn {
+    padding: 7px 14px; font-size: 12px; font-weight: 600; font-family: var(--sans);
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text-primary); cursor: pointer; transition: all 0.12s;
+  }
+  .digest-action-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(59,130,246,0.04); }
+  .digest-loader { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 99px; animation: spin 0.8s linear infinite; }
 
   /* Actions */
   .actions-section { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-light); }
@@ -1986,6 +2161,7 @@ const GLOBAL_CSS = `
   .text-input { flex: 1; border: none; outline: none; font-size: 14px; font-family: var(--sans); padding: 12px 0; background: transparent; color: var(--text-primary); }
   .send-btn { width: 34px; height: 34px; border-radius: 10px; background: var(--text-primary); color: #fff; border: none; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity 0.12s; }
   .input-hint { font-size: 11px; color: var(--text-tertiary); text-align: center; margin-top: 8px; }
+  .model-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: rgba(99,102,241,0.08); color: #6366f1; border-radius: 6px; font-weight: 600; font-size: 10px; letter-spacing: 0.3px; }
 `;
 
 const LANDING_CSS = `
